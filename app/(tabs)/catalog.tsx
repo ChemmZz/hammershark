@@ -19,9 +19,9 @@ export default function CatalogScreen() {
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<'equipment' | 'exercises'>('equipment');
   const {
-    activeWorkout,
-    addExerciseToManualWorkout,
-    createManualWorkout,
+    activeRoutine,
+    addExerciseToActiveDay,
+    createManualRoutine,
     findEquipmentForExercise,
   } = useWorkoutStore();
   const normalizedQuery = query.trim().toLowerCase();
@@ -49,10 +49,10 @@ export default function CatalogScreen() {
   );
 
   const addOrCreate = (exerciseId: string) => {
-    if (activeWorkout) {
-      addExerciseToManualWorkout(exerciseId);
+    if (activeRoutine) {
+      addExerciseToActiveDay(exerciseId);
     } else {
-      createManualWorkout(exerciseId);
+      createManualRoutine(exerciseId);
     }
   };
 
@@ -145,10 +145,10 @@ export default function CatalogScreen() {
                   <AppText numberOfLines={2}>{exercise.instructions}</AppText>
                   <PrimaryButton
                     disabled={!preferredEquipment}
-                    icon={activeWorkout ? 'plus' : 'play'}
+                    icon={activeRoutine ? 'plus' : 'play'}
                     onPress={() => addOrCreate(exercise.id)}
                     variant="secondary">
-                    {activeWorkout ? 'Add to workout' : 'Start workout'}
+                    {activeRoutine ? 'Add to today' : 'Start routine'}
                   </PrimaryButton>
                 </Card>
               );

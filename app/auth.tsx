@@ -63,10 +63,10 @@ export default function AuthScreen() {
         style={styles.keyboard}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.hero}>
-            <Eyebrow>Ratner workouts</Eyebrow>
+            <Eyebrow>Ratner routines</Eyebrow>
             <Title>Hammershark</Title>
             <AppText style={styles.subhead}>
-              Trainer-built sessions and machine-aware swaps for the gym floor.
+              Trainer-built routine days and machine-aware swaps for the gym floor.
             </AppText>
           </View>
 

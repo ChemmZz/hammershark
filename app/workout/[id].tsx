@@ -25,7 +25,7 @@ import {
   getSwapRecommendations,
 } from '@/lib/recommendations';
 import { useWorkoutStore } from '@/lib/workout-store';
-import { SwapRecommendation, UserWorkout, WorkoutExercise } from '@/lib/types';
+import { RoutineDay, SwapRecommendation, UserRoutine, WorkoutExercise } from '@/lib/types';
 
 const playerColors = {
   bg: '#111815',
@@ -44,16 +44,23 @@ const playerColors = {
 export default function WorkoutPlayerScreen() {
   const { isLoaded, isSignedIn } = useHammersharkAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { setActiveWorkoutId, userWorkouts } = useWorkoutStore();
+  const {
+    activeRoutineDay,
+    completedExerciseIds,
+    setActiveRoutineId,
+    toggleExerciseComplete,
+    userRoutines,
+  } = useWorkoutStore();
   const [activeIndex, setActiveIndex] = useState(0);
-  const [completedExerciseIds, setCompletedExerciseIds] = useState<string[]>([]);
   const [swapTarget, setSwapTarget] = useState<WorkoutExercise | null>(null);
   const { width } = useWindowDimensions();
 
-  const workout = userWorkouts.find((item) => item.id === id) ?? null;
+  const routine = userRoutines.find((item) => item.id === id) ?? null;
+  const selectedDay =
+    routine?.days.find((day) => day.id === activeRoutineDay?.id) ?? routine?.days[0] ?? null;
   const orderedExercises = useMemo(
-    () => workout?.exercises.slice().sort((left, right) => left.position - right.position) ?? [],
-    [workout],
+    () => selectedDay?.exercises.slice().sort((left, right) => left.position - right.position) ?? [],
+    [selectedDay],
   );
   const cardGap = 12;
   const cardWidth = Math.min(width - 32, 440);
@@ -65,11 +72,11 @@ export default function WorkoutPlayerScreen() {
     return <Redirect href="/auth" />;
   }
 
-  if (!workout) {
+  if (!routine || !selectedDay) {
     return (
       <SafeAreaView style={styles.player}>
         <View style={styles.emptyState}>
-          <AppText style={styles.emptyTitle}>Workout not found</AppText>
+          <AppText style={styles.emptyTitle}>Routine not found</AppText>
           <Pressable onPress={() => router.back()} style={styles.iconButton}>
             <FontAwesome color={playerColors.white} name="arrow-left" size={22} />
             <AppText style={styles.iconButtonText}>Back</AppText>
@@ -79,21 +86,13 @@ export default function WorkoutPlayerScreen() {
     );
   }
 
-  const completeExercise = (workoutExerciseId: string) => {
-    setCompletedExerciseIds((current) =>
-      current.includes(workoutExerciseId)
-        ? current.filter((item) => item !== workoutExerciseId)
-        : [...current, workoutExerciseId],
-    );
-  };
-
   const handleMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const nextIndex = Math.round(event.nativeEvent.contentOffset.x / (cardWidth + cardGap));
     setActiveIndex(Math.max(0, Math.min(nextIndex, orderedExercises.length - 1)));
   };
 
   const closePlayer = () => {
-    setActiveWorkoutId(workout.id);
+    setActiveRoutineId(routine.id);
     router.back();
   };
 
@@ -105,10 +104,10 @@ export default function WorkoutPlayerScreen() {
         </Pressable>
         <View style={styles.headerCopy}>
           <AppText numberOfLines={1} style={styles.headerTitle}>
-            {workout.title}
+            {routine.title}
           </AppText>
           <AppText style={styles.progressText}>
-            {completedCount} of {orderedExercises.length} completed
+            Day {selectedDay.dayNumber} · {completedCount} of {orderedExercises.length} completed
           </AppText>
         </View>
         <View style={styles.headerSpacer} />
@@ -124,9 +123,8 @@ export default function WorkoutPlayerScreen() {
             <ExercisePlayerCard
               cardWidth={cardWidth}
               completed={completedExerciseIds.includes(item.id)}
-              onComplete={() => completeExercise(item.id)}
+              onComplete={() => toggleExerciseComplete(item.id)}
               onSwap={() => setSwapTarget(item)}
-              workout={workout}
               workoutExercise={item}
             />
           )}
@@ -152,7 +150,8 @@ export default function WorkoutPlayerScreen() {
         onClose={() => setSwapTarget(null)}
         targetExercise={swapTarget}
         visible={Boolean(swapTarget)}
-        workout={workout}
+        routine={routine}
+        routineDay={selectedDay}
       />
     </SafeAreaView>
   );
@@ -169,7 +168,6 @@ function ExercisePlayerCard({
   completed: boolean;
   onComplete: () => void;
   onSwap: () => void;
-  workout: UserWorkout;
   workoutExercise: WorkoutExercise;
 }) {
   const exercise = getExercise(workoutExercise.exerciseId);
@@ -275,14 +273,16 @@ function ExercisePlayerCard({
 
 function SwapSheet({
   onClose,
+  routine,
+  routineDay,
   targetExercise,
   visible,
-  workout,
 }: {
   onClose: () => void;
+  routine: UserRoutine;
+  routineDay: RoutineDay;
   targetExercise: WorkoutExercise | null;
   visible: boolean;
-  workout: UserWorkout;
 }) {
   const { swapExercise } = useWorkoutStore();
   const recommendations = targetExercise
@@ -294,7 +294,7 @@ function SwapSheet({
       return;
     }
 
-    swapExercise(workout.id, targetExercise.id, recommendation);
+    swapExercise(routine.id, routineDay.id, targetExercise.id, recommendation);
     onClose();
   };
 

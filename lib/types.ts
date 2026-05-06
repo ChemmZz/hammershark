@@ -90,6 +90,14 @@ export type WorkoutExercise = {
   originalExerciseId?: string;
 };
 
+export type RoutineDay = {
+  id: string;
+  dayNumber: number;
+  title: string;
+  focus: string;
+  exercises: WorkoutExercise[];
+};
+
 export type WorkoutTemplate = {
   id: string;
   createdBy: string;
@@ -98,18 +106,20 @@ export type WorkoutTemplate = {
   goal: Goal;
   experienceLevel: ExperienceLevel;
   visibility: 'public' | 'private';
-  exercises: WorkoutExercise[];
+  days: RoutineDay[];
 };
 
-export type UserWorkout = {
+export type UserRoutine = {
   id: string;
   userId: string;
   sourceTemplateId: string | null;
   assignedBy: string | null;
   title: string;
   status: WorkoutStatus;
-  exercises: WorkoutExercise[];
+  days: RoutineDay[];
 };
+
+export type UserWorkout = UserRoutine;
 
 export type ExerciseSubstitution = {
   id: string;
@@ -122,6 +132,8 @@ export type ExerciseSubstitution = {
 
 export type WorkoutSetLog = {
   id: string;
+  routineId?: string;
+  routineDayId?: string;
   workoutExerciseId: string;
   exerciseId: string;
   equipmentId: string;

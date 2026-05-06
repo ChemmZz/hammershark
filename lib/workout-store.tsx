@@ -4,30 +4,55 @@ import {
   equipment,
   equipmentExercises,
   exercises,
-  initialUserWorkouts,
+  initialUserRoutines,
   workoutTemplates,
 } from '@/data/demoData';
 import { getPreferredEquipmentForExercise } from '@/lib/recommendations';
 import {
   Equipment,
   Exercise,
+  ExperienceLevel,
+  Goal,
+  RoutineDay,
   SwapRecommendation,
-  UserWorkout,
+  UserRoutine,
+  WorkoutExercise,
   WorkoutSetLog,
   WorkoutTemplate,
 } from '@/lib/types';
 
+type CoachRequest = {
+  id: string;
+  goal: Goal;
+  experienceLevel: ExperienceLevel;
+  createdAt: string;
+};
+
 type WorkoutStoreValue = {
   templates: WorkoutTemplate[];
-  userWorkouts: UserWorkout[];
-  activeWorkout: UserWorkout | null;
-  setActiveWorkoutId: (workoutId: string) => void;
+  userRoutines: UserRoutine[];
+  userWorkouts: UserRoutine[];
+  activeRoutine: UserRoutine | null;
+  activeRoutineDay: RoutineDay | null;
+  activeRoutineDayIndex: number;
+  activeWorkout: UserRoutine | null;
+  completedExerciseIds: string[];
+  coachRequests: CoachRequest[];
+  setActiveRoutineId: (routineId: string) => void;
+  setActiveRoutineDayId: (dayId: string) => void;
+  setActiveWorkoutId: (routineId: string) => void;
   setLogs: WorkoutSetLog[];
   assignTemplate: (templateId: string) => void;
+  createRecommendedRoutine: (goal: Goal, experienceLevel: ExperienceLevel) => void;
+  createManualRoutine: (exerciseId: string) => void;
   createManualWorkout: (exerciseId: string) => void;
+  addExerciseToActiveDay: (exerciseId: string) => void;
   addExerciseToManualWorkout: (exerciseId: string) => void;
+  requestCoachSession: (goal: Goal, experienceLevel: ExperienceLevel) => void;
+  toggleExerciseComplete: (workoutExerciseId: string) => void;
   swapExercise: (
-    userWorkoutId: string,
+    userRoutineId: string,
+    routineDayId: string,
     workoutExerciseId: string,
     recommendation: SwapRecommendation,
   ) => void;
@@ -51,15 +76,67 @@ function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function copyTemplateDays(template: WorkoutTemplate, idPrefix: string): RoutineDay[] {
+  return template.days.map((day) => ({
+    ...day,
+    id: makeId(`${idPrefix}-day`),
+    exercises: day.exercises.map((exercise) => ({
+      ...exercise,
+      id: makeId(`${idPrefix}-exercise`),
+    })),
+  }));
+}
+
+function getTemplateExerciseCount(template: WorkoutTemplate) {
+  return template.days.reduce((total, day) => total + day.exercises.length, 0);
+}
+
+function updateRoutineDay(
+  routine: UserRoutine,
+  routineDayId: string,
+  update: (day: RoutineDay) => RoutineDay,
+) {
+  return {
+    ...routine,
+    days: routine.days.map((day) => (day.id === routineDayId ? update(day) : day)),
+  };
+}
+
 export function HammersharkProvider({ children }: PropsWithChildren) {
   const [templates, setTemplates] = useState<WorkoutTemplate[]>(workoutTemplates);
-  const [userWorkouts, setUserWorkouts] = useState<UserWorkout[]>(initialUserWorkouts);
-  const [activeWorkoutId, setActiveWorkoutId] = useState(initialUserWorkouts[0]?.id ?? '');
+  const [userRoutines, setUserRoutines] = useState<UserRoutine[]>(initialUserRoutines);
+  const [activeRoutineId, setActiveRoutineIdState] = useState(initialUserRoutines[0]?.id ?? '');
+  const [activeRoutineDayId, setActiveRoutineDayIdState] = useState(
+    initialUserRoutines[0]?.days[0]?.id ?? '',
+  );
+  const [completedExerciseIds, setCompletedExerciseIds] = useState<string[]>([]);
+  const [coachRequests, setCoachRequests] = useState<CoachRequest[]>([]);
   const [setLogs, setSetLogs] = useState<WorkoutSetLog[]>([]);
+
+  const activeRoutine =
+    userRoutines.find((routine) => routine.id === activeRoutineId) ?? userRoutines[0] ?? null;
+  const activeRoutineDay =
+    activeRoutine?.days.find((day) => day.id === activeRoutineDayId) ??
+    activeRoutine?.days[0] ??
+    null;
+  const activeRoutineDayIndex = activeRoutine && activeRoutineDay
+    ? activeRoutine.days.findIndex((day) => day.id === activeRoutineDay.id)
+    : -1;
 
   const findEquipmentForExercise = (exerciseId: string) => getPreferredEquipmentForExercise(exerciseId);
   const findExercise = (exerciseId: string) =>
     exercises.find((exercise) => exercise.id === exerciseId) ?? null;
+
+  const setActiveRoutineId = (routineId: string) => {
+    const routine = userRoutines.find((item) => item.id === routineId);
+
+    setActiveRoutineIdState(routineId);
+    setActiveRoutineDayIdState(routine?.days[0]?.id ?? '');
+  };
+
+  const setActiveRoutineDayId = (dayId: string) => {
+    setActiveRoutineDayIdState(dayId);
+  };
 
   const assignTemplate = (templateId: string) => {
     const template = templates.find((item) => item.id === templateId);
@@ -68,86 +145,119 @@ export function HammersharkProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    const workoutId = makeId('user-workout');
-    const copiedWorkout: UserWorkout = {
-      id: workoutId,
+    const routineId = makeId('routine');
+    const copiedRoutine: UserRoutine = {
+      id: routineId,
       userId: 'profile-user-demo',
       sourceTemplateId: template.id,
       assignedBy: template.createdBy,
-      title: `Assigned: ${template.title}`,
+      title: template.title,
       status: 'active',
-      exercises: template.exercises.map((exercise) => ({
-        ...exercise,
-        id: makeId('user-exercise'),
-      })),
+      days: copyTemplateDays(template, 'routine'),
     };
 
-    setUserWorkouts((current) => [copiedWorkout, ...current]);
-    setActiveWorkoutId(workoutId);
+    setUserRoutines((current) => [copiedRoutine, ...current]);
+    setActiveRoutineIdState(routineId);
+    setActiveRoutineDayIdState(copiedRoutine.days[0]?.id ?? '');
   };
 
-  const createManualWorkout = (exerciseId: string) => {
+  const createRecommendedRoutine = (goal: Goal, experienceLevel: ExperienceLevel) => {
+    const template =
+      templates.find((item) => item.goal === goal && item.experienceLevel === experienceLevel) ??
+      templates.find((item) => item.goal === goal) ??
+      templates[0];
+
+    if (!template) {
+      return;
+    }
+
+    const routineId = makeId('recommended-routine');
+    const routine: UserRoutine = {
+      id: routineId,
+      userId: 'profile-user-demo',
+      sourceTemplateId: template.id,
+      assignedBy: null,
+      title: `Recommended: ${template.title}`,
+      status: 'active',
+      days: copyTemplateDays(template, 'recommended'),
+    };
+
+    setUserRoutines((current) => [routine, ...current]);
+    setActiveRoutineIdState(routineId);
+    setActiveRoutineDayIdState(routine.days[0]?.id ?? '');
+  };
+
+  const createManualRoutine = (exerciseId: string) => {
     const selectedEquipment = findEquipmentForExercise(exerciseId);
 
     if (!selectedEquipment) {
       return;
     }
 
-    const workoutId = makeId('manual-workout');
-    const workout: UserWorkout = {
-      id: workoutId,
+    const routineId = makeId('manual-routine');
+    const dayId = makeId('manual-day');
+    const routine: UserRoutine = {
+      id: routineId,
       userId: 'profile-user-demo',
       sourceTemplateId: null,
       assignedBy: null,
-      title: 'Manual Ratner Workout',
+      title: 'Manual Ratner Routine',
       status: 'draft',
-      exercises: [
+      days: [
         {
-          id: makeId('manual-exercise'),
-          exerciseId,
-          equipmentId: selectedEquipment.id,
-          position: 1,
-          sets: 3,
-          repsMin: 8,
-          repsMax: 12,
-          restSeconds: 90,
-          notes: 'Self-selected exercise.',
-        },
-      ],
-    };
-
-    setUserWorkouts((current) => [workout, ...current]);
-    setActiveWorkoutId(workoutId);
-  };
-
-  const addExerciseToManualWorkout = (exerciseId: string) => {
-    const selectedEquipment = findEquipmentForExercise(exerciseId);
-
-    if (!selectedEquipment) {
-      return;
-    }
-
-    setUserWorkouts((current) => {
-      const manualWorkout = current.find((workout) => workout.id === activeWorkoutId);
-
-      if (!manualWorkout) {
-        return current;
-      }
-
-      return current.map((workout) => {
-        if (workout.id !== manualWorkout.id) {
-          return workout;
-        }
-
-        return {
-          ...workout,
+          id: dayId,
+          dayNumber: 1,
+          title: 'Custom Day',
+          focus: 'Self-selected exercises',
           exercises: [
-            ...workout.exercises,
             {
               id: makeId('manual-exercise'),
               exerciseId,
               equipmentId: selectedEquipment.id,
-              position: workout.exercises.length + 1,
+              position: 1,
+              sets: 3,
+              repsMin: 8,
+              repsMax: 12,
+              restSeconds: 90,
+              notes: 'Self-selected exercise.',
+            },
+          ],
+        },
+      ],
+    };
+
+    setUserRoutines((current) => [routine, ...current]);
+    setActiveRoutineIdState(routineId);
+    setActiveRoutineDayIdState(dayId);
+  };
+
+  const addExerciseToActiveDay = (exerciseId: string) => {
+    const selectedEquipment = findEquipmentForExercise(exerciseId);
+
+    if (!selectedEquipment) {
+      return;
+    }
+
+    if (!activeRoutine || !activeRoutineDay) {
+      createManualRoutine(exerciseId);
+      return;
+    }
+
+    setUserRoutines((current) =>
+      current.map((routine) => {
+        if (routine.id !== activeRoutine.id) {
+          return routine;
+        }
+
+        return updateRoutineDay(routine, activeRoutineDay.id, (day) => ({
+          ...day,
+          exercises: [
+            ...day.exercises,
+            {
+              id: makeId('manual-exercise'),
+              exerciseId,
+              equipmentId: selectedEquipment.id,
+              position: day.exercises.length + 1,
               sets: 3,
               repsMin: 8,
               repsMax: 12,
@@ -155,25 +265,46 @@ export function HammersharkProvider({ children }: PropsWithChildren) {
               notes: 'Added from catalog.',
             },
           ],
-        };
-      });
-    });
+        }));
+      }),
+    );
+  };
+
+  const requestCoachSession = (goal: Goal, experienceLevel: ExperienceLevel) => {
+    setCoachRequests((current) => [
+      {
+        id: makeId('coach-request'),
+        goal,
+        experienceLevel,
+        createdAt: new Date().toISOString(),
+      },
+      ...current,
+    ]);
+  };
+
+  const toggleExerciseComplete = (workoutExerciseId: string) => {
+    setCompletedExerciseIds((current) =>
+      current.includes(workoutExerciseId)
+        ? current.filter((item) => item !== workoutExerciseId)
+        : [...current, workoutExerciseId],
+    );
   };
 
   const swapExercise = (
-    userWorkoutId: string,
+    userRoutineId: string,
+    routineDayId: string,
     workoutExerciseId: string,
     recommendation: SwapRecommendation,
   ) => {
-    setUserWorkouts((current) =>
-      current.map((workout) => {
-        if (workout.id !== userWorkoutId) {
-          return workout;
+    setUserRoutines((current) =>
+      current.map((routine) => {
+        if (routine.id !== userRoutineId) {
+          return routine;
         }
 
-        return {
-          ...workout,
-          exercises: workout.exercises.map((exercise) => {
+        return updateRoutineDay(routine, routineDayId, (day) => ({
+          ...day,
+          exercises: day.exercises.map((exercise) => {
             if (exercise.id !== workoutExerciseId) {
               return exercise;
             }
@@ -189,7 +320,7 @@ export function HammersharkProvider({ children }: PropsWithChildren) {
                   : recommendation.reason,
             };
           }),
-        };
+        }));
       }),
     );
   };
@@ -205,6 +336,8 @@ export function HammersharkProvider({ children }: PropsWithChildren) {
   ) => {
     const log: WorkoutSetLog = {
       id: makeId('set-log'),
+      routineId: activeRoutine?.id,
+      routineDayId: activeRoutineDay?.id,
       workoutExerciseId,
       exerciseId,
       equipmentId,
@@ -234,50 +367,77 @@ export function HammersharkProvider({ children }: PropsWithChildren) {
       id: makeId('template'),
       createdBy: 'profile-trainer-demo',
       title: title.trim(),
-      description: 'Trainer-created template from the in-app admin scaffold.',
+      description: 'Trainer-created template from the in-app coach tools.',
       goal: 'general_health',
       experienceLevel: 'beginner',
       visibility: 'public',
-      exercises: uniqueExerciseIds.map((exerciseId, index) => {
-        const selectedEquipment = findEquipmentForExercise(exerciseId) ?? equipment[0];
+      days: [
+        {
+          id: makeId('template-day'),
+          dayNumber: 1,
+          title: 'Coach Day',
+          focus: 'Trainer-selected exercises',
+          exercises: uniqueExerciseIds.map<WorkoutExercise>((exerciseId, index) => {
+            const selectedEquipment = findEquipmentForExercise(exerciseId) ?? equipment[0];
 
-        return {
-          id: makeId('template-exercise'),
-          exerciseId,
-          equipmentId: selectedEquipment.id,
-          position: index + 1,
-          sets: 3,
-          repsMin: 8,
-          repsMax: 12,
-          restSeconds: 90,
-          notes: 'Trainer default prescription.',
-        };
-      }),
+            return {
+              id: makeId('template-exercise'),
+              exerciseId,
+              equipmentId: selectedEquipment.id,
+              position: index + 1,
+              sets: 3,
+              repsMin: 8,
+              repsMax: 12,
+              restSeconds: 90,
+              notes: 'Trainer default prescription.',
+            };
+          }),
+        },
+      ],
     };
 
     setTemplates((current) => [template, ...current]);
   };
 
-  const activeWorkout =
-    userWorkouts.find((workout) => workout.id === activeWorkoutId) ?? userWorkouts[0] ?? null;
-
   const value = useMemo<WorkoutStoreValue>(
     () => ({
       templates,
-      userWorkouts,
-      activeWorkout,
-      setActiveWorkoutId,
+      userRoutines,
+      userWorkouts: userRoutines,
+      activeRoutine,
+      activeRoutineDay,
+      activeRoutineDayIndex,
+      activeWorkout: activeRoutine,
+      completedExerciseIds,
+      coachRequests,
+      setActiveRoutineId,
+      setActiveRoutineDayId,
+      setActiveWorkoutId: setActiveRoutineId,
       setLogs,
       assignTemplate,
-      createManualWorkout,
-      addExerciseToManualWorkout,
+      createRecommendedRoutine,
+      createManualRoutine,
+      createManualWorkout: createManualRoutine,
+      addExerciseToActiveDay,
+      addExerciseToManualWorkout: addExerciseToActiveDay,
+      requestCoachSession,
+      toggleExerciseComplete,
       swapExercise,
       logSet,
       createTrainerTemplate,
       findEquipmentForExercise,
       findExercise,
     }),
-    [activeWorkout, setLogs, templates, userWorkouts],
+    [
+      activeRoutine,
+      activeRoutineDay,
+      activeRoutineDayIndex,
+      coachRequests,
+      completedExerciseIds,
+      setLogs,
+      templates,
+      userRoutines,
+    ],
   );
 
   return <WorkoutStoreContext.Provider value={value}>{children}</WorkoutStoreContext.Provider>;
@@ -300,3 +460,5 @@ export function getExercisesForEquipment(equipmentId: string) {
 
   return exercises.filter((exercise) => exerciseIds.includes(exercise.id));
 }
+
+export { getTemplateExerciseCount };

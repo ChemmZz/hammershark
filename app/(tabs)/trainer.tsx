@@ -14,7 +14,7 @@ import {
 } from '@/components/ui';
 import { useHammersharkAuth } from '@/lib/auth';
 import { getEquipment, getPrimaryMuscleNames } from '@/lib/recommendations';
-import { useWorkoutStore } from '@/lib/workout-store';
+import { getTemplateExerciseCount, useWorkoutStore } from '@/lib/workout-store';
 
 export default function TrainerScreen() {
   const { profile, signOut } = useHammersharkAuth();
@@ -140,19 +140,27 @@ export default function TrainerScreen() {
                   <AppText style={styles.cardTitle}>{template.title}</AppText>
                   <AppText style={styles.muted}>{template.description}</AppText>
                 </View>
-                <Pill>{template.exercises.length} moves</Pill>
+                <Pill>{template.days.length} days</Pill>
               </View>
-              {template.exercises.map((templateExercise) => {
-                const exercise = exercises.find((item) => item.id === templateExercise.exerciseId);
-                const equipment = getEquipment(templateExercise.equipmentId);
-
-                return (
-                  <AppText key={templateExercise.id} style={styles.muted}>
-                    {templateExercise.position}. {exercise?.name ?? 'Unknown exercise'} ·{' '}
-                    {equipment.machineNumber ? `Machine ${equipment.machineNumber}` : equipment.name}
+              <AppText style={styles.muted}>{getTemplateExerciseCount(template)} total moves</AppText>
+              {template.days.map((day) => (
+                <View key={day.id} style={styles.daySummary}>
+                  <AppText style={styles.dayTitle}>
+                    Day {day.dayNumber}: {day.title}
                   </AppText>
-                );
-              })}
+                  {day.exercises.map((templateExercise) => {
+                    const exercise = exercises.find((item) => item.id === templateExercise.exerciseId);
+                    const equipment = getEquipment(templateExercise.equipmentId);
+
+                    return (
+                      <AppText key={templateExercise.id} style={styles.muted}>
+                        {templateExercise.position}. {exercise?.name ?? 'Unknown exercise'} ·{' '}
+                        {equipment.machineNumber ? `Machine ${equipment.machineNumber}` : equipment.name}
+                      </AppText>
+                    );
+                  })}
+                </View>
+              ))}
             </Card>
           ))}
         </View>
@@ -224,5 +232,15 @@ const styles = StyleSheet.create({
   selectedExercise: {
     backgroundColor: '#eef8f2',
     borderColor: colors.accent,
+  },
+  daySummary: {
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    gap: 4,
+    paddingTop: 10,
+  },
+  dayTitle: {
+    fontSize: 14,
+    fontWeight: '900',
   },
 });
