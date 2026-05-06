@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { exercises } from '@/data/demoData';
 import {
@@ -55,10 +55,9 @@ export default function TrainerScreen() {
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.header}>
             <Eyebrow>Protected mode</Eyebrow>
-            <Title>Trainer tools</Title>
+            <Title>Coach tools</Title>
             <AppText style={styles.muted}>
-              Trainer editing is protected by the profile role. In local demo mode, sign out and
-              continue as trainer to use this screen.
+              Sign in as a trainer to build reusable Ratner templates.
             </AppText>
           </View>
           <Card style={styles.stack}>
@@ -66,7 +65,7 @@ export default function TrainerScreen() {
             <AppText style={styles.muted}>
               Supabase RLS will enforce the same boundary when the database is connected.
             </AppText>
-            <PrimaryButton onPress={signOut} variant="secondary">
+            <PrimaryButton icon="sign-out" onPress={signOut} variant="secondary">
               Sign out
             </PrimaryButton>
           </Card>
@@ -79,12 +78,8 @@ export default function TrainerScreen() {
     <Screen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Eyebrow>Admin scaffold</Eyebrow>
-          <Title>Trainer tools</Title>
-          <AppText style={styles.muted}>
-            Create reusable templates from the mapped Ratner exercise catalog. Assignments are
-            copied into the user workout list.
-          </AppText>
+          <Eyebrow>Coach mode</Eyebrow>
+          <Title>Build a plan</Title>
         </View>
 
         <Card style={styles.stack}>
@@ -110,7 +105,12 @@ export default function TrainerScreen() {
               const muscles = getPrimaryMuscleNames(exercise.id);
 
               return (
-                <Card key={exercise.id} style={selected ? styles.selectedExercise : styles.exerciseOption}>
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: selected }}
+                  key={exercise.id}
+                  onPress={() => toggleExercise(exercise.id)}
+                  style={[styles.exerciseOption, selected && styles.selectedExercise]}>
                   <View style={styles.rowBetween}>
                     <View style={styles.flex}>
                       <AppText style={styles.cardTitle}>{exercise.name}</AppText>
@@ -118,23 +118,20 @@ export default function TrainerScreen() {
                     </View>
                     <Pill tone={selected ? 'accent' : 'neutral'}>{selected ? 'selected' : 'add'}</Pill>
                   </View>
-                  <PrimaryButton onPress={() => toggleExercise(exercise.id)} variant="ghost">
-                    {selected ? 'Remove' : 'Add'}
-                  </PrimaryButton>
-                </Card>
+                </Pressable>
               );
             })}
           </View>
 
-          <PrimaryButton disabled={!canCreate} onPress={submit}>
+          <PrimaryButton disabled={!canCreate} icon="plus" onPress={submit}>
             Create template
           </PrimaryButton>
         </Card>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Eyebrow>Existing trainer templates</Eyebrow>
-            <AppText style={styles.muted}>These are reusable source plans, not user logs.</AppText>
+            <Eyebrow>Saved templates</Eyebrow>
+            <AppText style={styles.muted}>Reusable source plans.</AppText>
           </View>
           {trainerTemplates.map((template) => (
             <Card key={template.id} style={styles.stack}>
@@ -166,12 +163,16 @@ export default function TrainerScreen() {
 
 const styles = StyleSheet.create({
   content: {
-    gap: 22,
+    alignSelf: 'center',
+    gap: 18,
+    maxWidth: 520,
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: 96,
+    paddingTop: 8,
+    width: '100%',
   },
   header: {
-    gap: 6,
+    gap: 4,
   },
   muted: {
     color: colors.muted,
@@ -195,12 +196,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
-    lineHeight: 22,
+    lineHeight: 21,
   },
   input: {
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surfaceMuted,
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
@@ -213,11 +214,15 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   exerciseOption: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
     gap: 10,
+    padding: 12,
   },
   selectedExercise: {
-    backgroundColor: '#ecfdf3',
+    backgroundColor: '#eef8f2',
     borderColor: colors.accent,
-    gap: 10,
   },
 });

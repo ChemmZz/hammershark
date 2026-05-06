@@ -28,16 +28,16 @@ import { useWorkoutStore } from '@/lib/workout-store';
 import { SwapRecommendation, UserWorkout, WorkoutExercise } from '@/lib/types';
 
 const playerColors = {
-  bg: '#171717',
-  card: '#f8f8f6',
-  cardMuted: '#ececea',
-  ink: '#202124',
-  muted: '#68717d',
-  line: '#dedede',
-  accent: '#f4bd36',
-  accentDark: '#d99a12',
-  darkControl: '#101010',
-  blue: '#2c6f91',
+  bg: '#111815',
+  card: '#fbfcf8',
+  cardMuted: '#eef2ed',
+  ink: '#14211c',
+  muted: '#617066',
+  line: '#dbe3dc',
+  accent: '#e4a11b',
+  accentDark: '#8d650f',
+  darkControl: '#0f6f56',
+  blue: '#22577a',
   white: '#ffffff',
 };
 
@@ -55,8 +55,8 @@ export default function WorkoutPlayerScreen() {
     () => workout?.exercises.slice().sort((left, right) => left.position - right.position) ?? [],
     [workout],
   );
-  const cardGap = 14;
-  const cardWidth = Math.min(width * 0.78, 360);
+  const cardGap = 12;
+  const cardWidth = Math.min(width - 32, 440);
   const completedCount = orderedExercises.filter((exercise) =>
     completedExerciseIds.includes(exercise.id),
   ).length;
@@ -111,9 +111,7 @@ export default function WorkoutPlayerScreen() {
             {completedCount} of {orderedExercises.length} completed
           </AppText>
         </View>
-        <Pressable accessibilityRole="button" style={styles.headerIcon}>
-          <FontAwesome color={playerColors.white} name="volume-up" size={25} />
-        </Pressable>
+        <View style={styles.headerSpacer} />
       </View>
 
       <View style={styles.carouselWrap}>
@@ -382,13 +380,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: 12,
-    paddingHorizontal: 22,
+    paddingHorizontal: 16,
     paddingTop: 8,
   },
   headerIcon: {
     alignItems: 'center',
+    backgroundColor: '#1b2722',
+    borderColor: '#2d3a34',
+    borderRadius: 8,
+    borderWidth: 1,
     height: 44,
     justifyContent: 'center',
+    width: 44,
+  },
+  headerSpacer: {
+    height: 44,
     width: 44,
   },
   headerCopy: {
@@ -405,33 +411,31 @@ const styles = StyleSheet.create({
   },
   progressText: {
     color: playerColors.accent,
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '900',
   },
   carouselWrap: {
     flex: 1,
     justifyContent: 'center',
-    marginTop: 18,
+    marginTop: 10,
   },
   carouselContent: {
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
   },
   exerciseCard: {
     backgroundColor: playerColors.card,
-    borderRadius: 13,
+    borderRadius: 8,
+    boxShadow: '0px 14px 24px rgba(0, 0, 0, 0.24)',
+    elevation: 6,
     overflow: 'hidden',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.24,
-    shadowRadius: 24,
   },
   exerciseCardDone: {
     opacity: 0.82,
   },
   media: {
-    backgroundColor: '#d9d9d9',
-    height: 156,
+    backgroundColor: '#dce3dd',
+    height: 184,
     overflow: 'visible',
   },
   mediaImage: {
@@ -461,52 +465,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: playerColors.white,
     borderRadius: 999,
-    height: 74,
+    height: 58,
     justifyContent: 'center',
     left: '50%',
-    marginLeft: -37,
+    marginLeft: -29,
     position: 'absolute',
-    top: 54,
-    width: 74,
+    top: 63,
+    width: 58,
   },
   playIcon: {
     marginLeft: 6,
   },
   doneButton: {
     alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: playerColors.accent,
+    backgroundColor: 'rgba(255,255,255,0.94)',
     borderColor: playerColors.white,
-    borderRadius: 7,
-    borderWidth: 2,
-    bottom: -28,
+    borderRadius: 999,
+    borderWidth: 1,
     flexDirection: 'row',
-    gap: 10,
-    minHeight: 52,
-    paddingHorizontal: 13,
+    gap: 7,
+    minHeight: 36,
+    paddingHorizontal: 10,
     position: 'absolute',
+    right: 12,
+    top: 12,
   },
   doneBox: {
     alignItems: 'center',
-    backgroundColor: playerColors.white,
-    borderColor: '#f1d07d',
+    backgroundColor: playerColors.cardMuted,
+    borderColor: playerColors.line,
     borderRadius: 6,
     borderWidth: 1,
-    height: 34,
+    height: 24,
     justifyContent: 'center',
-    width: 34,
+    width: 24,
   },
   doneBoxChecked: {
-    backgroundColor: playerColors.bg,
-    borderColor: playerColors.bg,
+    backgroundColor: playerColors.darkControl,
+    borderColor: playerColors.darkControl,
   },
   doneText: {
     color: playerColors.ink,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '900',
   },
   cardBody: {
-    paddingTop: 44,
+    paddingTop: 18,
   },
   exerciseTitleRow: {
     alignItems: 'center',
@@ -520,9 +524,9 @@ const styles = StyleSheet.create({
   },
   exerciseTitle: {
     color: playerColors.ink,
-    fontSize: 23,
-    fontWeight: '500',
-    lineHeight: 28,
+    fontSize: 22,
+    fontWeight: '900',
+    lineHeight: 27,
   },
   machineText: {
     color: playerColors.muted,
@@ -531,10 +535,12 @@ const styles = StyleSheet.create({
   },
   swapButton: {
     alignItems: 'center',
-    gap: 2,
+    backgroundColor: playerColors.cardMuted,
+    borderRadius: 8,
+    gap: 3,
     justifyContent: 'center',
-    minHeight: 46,
-    minWidth: 52,
+    minHeight: 48,
+    minWidth: 58,
   },
   swapText: {
     color: playerColors.ink,
@@ -549,7 +555,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
   },
   musclePill: {
-    backgroundColor: '#f6ead1',
+    backgroundColor: '#f4ead4',
     borderRadius: 999,
     color: playerColors.accentDark,
     fontSize: 11,
@@ -559,10 +565,14 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   prescriptionRow: {
+    backgroundColor: playerColors.cardMuted,
+    borderRadius: 8,
     flexDirection: 'row',
     gap: 28,
-    paddingHorizontal: 22,
-    paddingTop: 16,
+    marginHorizontal: 20,
+    marginTop: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   prescriptionLabel: {
     color: playerColors.accentDark,
@@ -580,8 +590,8 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     flexDirection: 'row',
     marginHorizontal: 20,
-    marginTop: 18,
-    minHeight: 58,
+    marginTop: 12,
+    minHeight: 54,
     overflow: 'hidden',
   },
   restLabel: {
@@ -617,7 +627,7 @@ const styles = StyleSheet.create({
     borderTopColor: playerColors.line,
     borderTopWidth: 1,
     flexDirection: 'row',
-    marginTop: 20,
+    marginTop: 16,
     minHeight: 60,
   },
   weightBox: {
@@ -657,7 +667,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 11,
     justifyContent: 'center',
-    paddingBottom: 28,
+    paddingBottom: 22,
   },
   dot: {
     backgroundColor: '#686868',

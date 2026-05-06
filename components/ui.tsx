@@ -1,4 +1,5 @@
-import { PropsWithChildren } from 'react';
+import { ComponentProps, PropsWithChildren } from 'react';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 import {
   ActivityIndicator,
   Pressable,
@@ -10,22 +11,25 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export const colors = {
-  bg: '#f6f2eb',
+  bg: '#f4f6f2',
   surface: '#ffffff',
-  surfaceMuted: '#efe8dc',
-  ink: '#1f2933',
-  muted: '#667085',
-  border: '#ded6c9',
-  accent: '#0f766e',
-  accentDark: '#115e59',
+  surfaceMuted: '#edf2ed',
+  ink: '#14211c',
+  muted: '#66756d',
+  border: '#dce4dc',
+  accent: '#0f6f56',
+  accentDark: '#0a4d3d',
   danger: '#b42318',
   gold: '#b7791f',
+  action: '#e4a11b',
+  blue: '#22577a',
 };
 
 export function Screen({ children, style }: PropsWithChildren<{ style?: StyleProp<ViewStyle> }>) {
-  return <View style={[styles.screen, style]}>{children}</View>;
+  return <SafeAreaView edges={['top']} style={[styles.screen, style]}>{children}</SafeAreaView>;
 }
 
 export function Card({ children, style }: PropsWithChildren<{ style?: StyleProp<ViewStyle> }>) {
@@ -79,10 +83,12 @@ export function PrimaryButton({
   children,
   onPress,
   disabled,
+  icon,
   variant = 'primary',
 }: PropsWithChildren<{
   onPress: () => void;
   disabled?: boolean;
+  icon?: ComponentProps<typeof FontAwesome>['name'];
   variant?: 'primary' | 'secondary' | 'ghost';
 }>) {
   return (
@@ -97,6 +103,13 @@ export function PrimaryButton({
         disabled && styles.buttonDisabled,
         pressed && !disabled && styles.buttonPressed,
       ]}>
+      {icon ? (
+        <FontAwesome
+          color={variant === 'primary' ? '#ffffff' : colors.accentDark}
+          name={icon}
+          size={15}
+        />
+      ) : null}
       <AppText
         style={[
           styles.buttonText,
@@ -128,7 +141,7 @@ export const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
-    padding: 16,
+    padding: 14,
   },
   text: {
     color: colors.ink,
@@ -136,14 +149,14 @@ export const styles = StyleSheet.create({
     lineHeight: 21,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
     letterSpacing: 0,
-    lineHeight: 34,
+    lineHeight: 29,
   },
   eyebrow: {
     color: colors.accentDark,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0,
     textTransform: 'uppercase',
@@ -179,10 +192,12 @@ export const styles = StyleSheet.create({
   button: {
     alignItems: 'center',
     backgroundColor: colors.accent,
+    flexDirection: 'row',
+    gap: 8,
     borderRadius: 8,
-    minHeight: 44,
+    minHeight: 48,
     justifyContent: 'center',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 10,
   },
   buttonSecondary: {

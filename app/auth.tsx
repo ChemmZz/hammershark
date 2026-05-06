@@ -66,8 +66,7 @@ export default function AuthScreen() {
             <Eyebrow>Ratner workouts</Eyebrow>
             <Title>Hammershark</Title>
             <AppText style={styles.subhead}>
-              Trainer-built workouts, machine-aware swaps, and set logging for the gym in front of
-              you.
+              Trainer-built sessions and machine-aware swaps for the gym floor.
             </AppText>
           </View>
 
@@ -77,9 +76,10 @@ export default function AuthScreen() {
                 {authMode === 'demo' ? 'Local demo' : 'Clerk auth'}
               </Pill>
               <PrimaryButton
+                icon={mode === 'sign-in' ? 'user-plus' : 'sign-in'}
                 onPress={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}
                 variant="ghost">
-                {mode === 'sign-in' ? 'Create account' : 'Sign in'}
+                {mode === 'sign-in' ? 'Create' : 'Sign in'}
               </PrimaryButton>
             </View>
 
@@ -107,7 +107,10 @@ export default function AuthScreen() {
 
               {error ? <AppText style={styles.error}>{error}</AppText> : null}
 
-              <PrimaryButton disabled={isSubmitting} onPress={submit}>
+              <PrimaryButton
+                disabled={isSubmitting}
+                icon={mode === 'sign-in' ? 'sign-in' : 'user-plus'}
+                onPress={submit}>
                 {isSubmitting ? 'Working...' : mode === 'sign-in' ? 'Sign in' : 'Sign up'}
               </PrimaryButton>
             </View>
@@ -115,10 +118,10 @@ export default function AuthScreen() {
 
           {authMode === 'demo' ? (
             <View style={styles.demoActions}>
-              <PrimaryButton onPress={() => continueAsDemo('user')} variant="secondary">
+              <PrimaryButton icon="graduation-cap" onPress={() => continueAsDemo('user')} variant="secondary">
                 Continue as student
               </PrimaryButton>
-              <PrimaryButton onPress={() => continueAsDemo('trainer')} variant="ghost">
+              <PrimaryButton icon="user-md" onPress={() => continueAsDemo('trainer')} variant="ghost">
                 Continue as trainer
               </PrimaryButton>
             </View>
@@ -134,12 +137,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    gap: 18,
+    alignSelf: 'center',
+    gap: 16,
+    maxWidth: 480,
     padding: 20,
-    paddingTop: 72,
+    paddingTop: 44,
+    width: '100%',
   },
   hero: {
-    gap: 8,
+    gap: 6,
   },
   subhead: {
     color: colors.muted,
@@ -162,7 +168,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   input: {
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surfaceMuted,
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
@@ -177,5 +183,6 @@ const styles = StyleSheet.create({
   },
   demoActions: {
     gap: 10,
+    paddingBottom: 24,
   },
 });
