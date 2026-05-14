@@ -155,7 +155,7 @@ export default function TrainerScreen() {
                     return (
                       <AppText key={templateExercise.id} style={styles.muted}>
                         {templateExercise.position}. {exercise?.name ?? 'Unknown exercise'} ·{' '}
-                        {equipment.machineNumber ? `Machine ${equipment.machineNumber}` : equipment.name}
+                        {equipment.machineNumber ? `Station ${equipment.machineNumber}` : equipment.name}
                       </AppText>
                     );
                   })}

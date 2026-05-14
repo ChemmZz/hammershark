@@ -17,7 +17,7 @@ import { getExercisesForEquipment, useWorkoutStore } from '@/lib/workout-store';
 
 export default function CatalogScreen() {
   const [query, setQuery] = useState('');
-  const [mode, setMode] = useState<'equipment' | 'exercises'>('equipment');
+  const [mode, setMode] = useState<'stations' | 'exercises' | 'database'>('database');
   const {
     activeRoutine,
     addExerciseToActiveDay,
@@ -33,7 +33,9 @@ export default function CatalogScreen() {
           .join(' ')
           .toLowerCase()
           .includes(normalizedQuery),
-      ),
+      )
+      .slice()
+      .sort((left, right) => (left.machineNumber ?? left.name).localeCompare(right.machineNumber ?? right.name, undefined, { numeric: true })),
     [normalizedQuery],
   );
 
@@ -45,6 +47,39 @@ export default function CatalogScreen() {
           .toLowerCase()
           .includes(normalizedQuery),
       ),
+    [normalizedQuery],
+  );
+
+  const databaseRows = useMemo(
+    () =>
+      equipment
+        .map((item) => {
+          const mappedExercises = getExercisesForEquipment(item.id);
+          const searchBlob = [
+            item.name,
+            item.machineNumber ?? '',
+            item.equipmentType,
+            item.brand ?? '',
+            ...mappedExercises.map((exercise) => exercise.name),
+            ...mappedExercises.flatMap((exercise) => getPrimaryMuscleNames(exercise.id)),
+          ]
+            .join(' ')
+            .toLowerCase();
+
+          return {
+            item,
+            mappedExercises,
+            searchBlob,
+          };
+        })
+        .filter((entry) => entry.searchBlob.includes(normalizedQuery))
+        .sort((left, right) =>
+          (left.item.machineNumber ?? left.item.name).localeCompare(
+            right.item.machineNumber ?? right.item.name,
+            undefined,
+            { numeric: true },
+          ),
+        ),
     [normalizedQuery],
   );
 
@@ -60,14 +95,14 @@ export default function CatalogScreen() {
     <Screen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Eyebrow>Ratner map</Eyebrow>
-          <Title>Find your station</Title>
+          <Eyebrow>Ratner database</Eyebrow>
+          <Title>Browse stations and exercises</Title>
         </View>
 
         <TextInput
           autoCapitalize="none"
           onChangeText={setQuery}
-          placeholder="Search machine 18, row, push"
+          placeholder="Search A21, pulldown, quads"
           placeholderTextColor={colors.muted}
           style={styles.search}
           value={query}
@@ -75,10 +110,10 @@ export default function CatalogScreen() {
 
         <View style={styles.segmented}>
           <SegmentButton
-            active={mode === 'equipment'}
+            active={mode === 'stations'}
             count={filteredEquipment.length}
-            label="Machines"
-            onPress={() => setMode('equipment')}
+            label="Stations"
+            onPress={() => setMode('stations')}
           />
           <SegmentButton
             active={mode === 'exercises'}
@@ -86,9 +121,15 @@ export default function CatalogScreen() {
             label="Exercises"
             onPress={() => setMode('exercises')}
           />
+          <SegmentButton
+            active={mode === 'database'}
+            count={databaseRows.length}
+            label="Database"
+            onPress={() => setMode('database')}
+          />
         </View>
 
-        {mode === 'equipment' ? (
+        {mode === 'stations' ? (
           <View style={styles.section}>
             {filteredEquipment.map((item) => {
               const mappedExercises = getExercisesForEquipment(item.id);
@@ -99,12 +140,17 @@ export default function CatalogScreen() {
                     <View style={styles.flex}>
                       <AppText style={styles.cardTitle}>{item.name}</AppText>
                       <AppText style={styles.muted}>
-                        {item.machineNumber ? `Machine ${item.machineNumber}` : 'Shared station'} ·{' '}
+                        {item.machineNumber ? `Station ${item.machineNumber}` : 'Shared station'} ·{' '}
                         {item.equipmentType}
                       </AppText>
                     </View>
                     <Pill tone={item.isAvailable ? 'accent' : 'gold'}>
                       {item.isAvailable ? 'open' : 'offline'}
+                    </Pill>
+                  </View>
+                  <View style={styles.rowWrap}>
+                    <Pill tone={item.catalogStatus === 'verified' ? 'accent' : 'gold'}>
+                      {item.catalogStatus === 'verified' ? 'verified' : 'placeholder'}
                     </Pill>
                   </View>
                   <AppText numberOfLines={2}>{item.instructions}</AppText>
@@ -117,7 +163,7 @@ export default function CatalogScreen() {
               );
             })}
           </View>
-        ) : (
+        ) : mode === 'exercises' ? (
           <View style={styles.section}>
             {filteredExercises.map((exercise) => {
               const preferredEquipment = findEquipmentForExercise(exercise.id);
@@ -130,11 +176,16 @@ export default function CatalogScreen() {
                       <AppText style={styles.cardTitle}>{exercise.name}</AppText>
                       <AppText style={styles.muted}>
                         {preferredEquipment?.machineNumber
-                          ? `Machine ${preferredEquipment.machineNumber}`
+                          ? `Station ${preferredEquipment.machineNumber}`
                           : preferredEquipment?.name ?? 'No equipment mapped'}
                       </AppText>
                     </View>
                     <Pill>{exercise.difficulty}</Pill>
+                  </View>
+                  <View style={styles.rowWrap}>
+                    <Pill tone={exercise.catalogStatus === 'verified' ? 'accent' : 'gold'}>
+                      {exercise.catalogStatus === 'verified' ? 'verified' : 'placeholder'}
+                    </Pill>
                   </View>
                   <View style={styles.rowWrap}>
                     {muscles.slice(0, 2).map((muscle) => (
@@ -153,6 +204,72 @@ export default function CatalogScreen() {
                 </Card>
               );
             })}
+          </View>
+        ) : (
+          <View style={styles.section}>
+            {databaseRows.map(({ item, mappedExercises }) => (
+              <Card key={item.id} style={styles.databaseCard}>
+                <View style={styles.rowBetween}>
+                  <View style={styles.flex}>
+                    <AppText style={styles.databaseStationCode}>
+                      {item.machineNumber ? `Station ${item.machineNumber}` : item.name}
+                    </AppText>
+                    <AppText style={styles.cardTitle}>{item.name}</AppText>
+                    <AppText style={styles.muted}>
+                      {[item.equipmentType, item.brand].filter(Boolean).join(' · ')}
+                    </AppText>
+                  </View>
+                  <Pill tone={item.isAvailable ? 'accent' : 'gold'}>
+                    {item.isAvailable ? 'open' : 'offline'}
+                  </Pill>
+                </View>
+
+                <View style={styles.rowWrap}>
+                  <Pill tone={item.catalogStatus === 'verified' ? 'accent' : 'gold'}>
+                    {item.catalogStatus === 'verified' ? 'verified' : 'placeholder'}
+                  </Pill>
+                  <Pill>{mappedExercises.length} exercises</Pill>
+                </View>
+
+                <AppText>{item.instructions}</AppText>
+
+                <View style={styles.exerciseDatabaseList}>
+                  {mappedExercises.length ? (
+                    mappedExercises.map((exercise) => {
+                      const muscles = getPrimaryMuscleNames(exercise.id);
+
+                      return (
+                        <View key={exercise.id} style={styles.exerciseDatabaseRow}>
+                          <View style={styles.rowBetween}>
+                            <View style={styles.flex}>
+                              <AppText style={styles.exerciseDatabaseTitle}>{exercise.name}</AppText>
+                              <AppText style={styles.muted}>
+                                {exercise.difficulty} · {exercise.movementPattern}
+                              </AppText>
+                            </View>
+                            <PrimaryButton
+                              disabled={!item.isAvailable}
+                              icon={activeRoutine ? 'plus' : 'play'}
+                              onPress={() => addOrCreate(exercise.id)}
+                              variant="secondary">
+                              {activeRoutine ? 'Add' : 'Start'}
+                            </PrimaryButton>
+                          </View>
+                          <View style={styles.rowWrap}>
+                            {muscles.map((muscle) => (
+                              <Pill key={`${exercise.id}-${muscle}`}>{muscle}</Pill>
+                            ))}
+                          </View>
+                          <AppText numberOfLines={2}>{exercise.instructions}</AppText>
+                        </View>
+                      );
+                    })
+                  ) : (
+                    <AppText style={styles.muted}>No exercises mapped to this station yet.</AppText>
+                  )}
+                </View>
+              </Card>
+            ))}
           </View>
         )}
       </ScrollView>
@@ -214,7 +331,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     flexDirection: 'row',
-    gap: 6,
+    gap: 4,
     padding: 5,
   },
   segmentButton: {
@@ -248,10 +365,36 @@ const styles = StyleSheet.create({
   stack: {
     gap: 12,
   },
+  databaseCard: {
+    gap: 12,
+  },
+  databaseStationCode: {
+    color: colors.accentDark,
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
   cardTitle: {
     fontSize: 16,
     fontWeight: '800',
     lineHeight: 21,
+  },
+  exerciseDatabaseList: {
+    gap: 10,
+  },
+  exerciseDatabaseRow: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 10,
+    padding: 12,
+  },
+  exerciseDatabaseTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    lineHeight: 20,
   },
   rowBetween: {
     alignItems: 'flex-start',

@@ -12,6 +12,10 @@ import {
   WorkoutTemplate,
 } from '@/lib/types';
 
+type MockEquipmentStation = Omit<Equipment, 'machineNumber'> & {
+  stationCode: string | null;
+};
+
 export const demoProfiles: Profile[] = [
   {
     id: 'profile-user-demo',
@@ -34,7 +38,10 @@ export const demoPreferences: UserPreferences = {
   goal: 'strength',
   experienceLevel: 'beginner',
   preferredEquipment: 'mixed',
-  onboardingCompleted: true,
+  daysPerWeek: 3,
+  sessionLengthMinutes: 45,
+  comfortLevel: 'new_to_gym',
+  onboardingCompleted: false,
 };
 
 export const gyms: Gym[] = [
@@ -58,11 +65,11 @@ export const muscleGroups: MuscleGroup[] = [
   { id: 'core', name: 'Core' },
 ];
 
-export const equipment: Equipment[] = [
+export const mockEquipmentStations: MockEquipmentStation[] = [
   {
     id: 'eq-chest-press',
     gymId: 'ratner',
-    machineNumber: '21',
+    stationCode: 'A24',
     name: 'Seated Chest Press',
     brand: 'Life Fitness',
     equipmentType: 'machine',
@@ -73,7 +80,7 @@ export const equipment: Equipment[] = [
   {
     id: 'eq-cable-tower',
     gymId: 'ratner',
-    machineNumber: '08',
+    stationCode: 'A26',
     name: 'Dual Cable Tower',
     brand: 'Precor',
     equipmentType: 'cable',
@@ -84,7 +91,7 @@ export const equipment: Equipment[] = [
   {
     id: 'eq-lat-pulldown',
     gymId: 'ratner',
-    machineNumber: '18',
+    stationCode: 'A21',
     name: 'Lat Pulldown',
     brand: 'Life Fitness',
     equipmentType: 'machine',
@@ -95,7 +102,7 @@ export const equipment: Equipment[] = [
   {
     id: 'eq-seated-row',
     gymId: 'ratner',
-    machineNumber: '19',
+    stationCode: 'A22',
     name: 'Seated Cable Row',
     brand: 'Life Fitness',
     equipmentType: 'machine',
@@ -106,7 +113,7 @@ export const equipment: Equipment[] = [
   {
     id: 'eq-leg-press',
     gymId: 'ratner',
-    machineNumber: '31',
+    stationCode: 'B13',
     name: 'Leg Press',
     brand: 'Cybex',
     equipmentType: 'machine',
@@ -115,9 +122,57 @@ export const equipment: Equipment[] = [
     isAvailable: true,
   },
   {
+    id: 'eq-shoulder-press',
+    gymId: 'ratner',
+    stationCode: 'A25',
+    name: 'Seated Shoulder Press',
+    brand: 'Life Fitness',
+    equipmentType: 'machine',
+    photoUrl: null,
+    instructions: 'Set the seat so handles start near shoulder height. Press without arching.',
+    isAvailable: true,
+    catalogStatus: 'placeholder',
+  },
+  {
+    id: 'eq-leg-extension',
+    gymId: 'ratner',
+    stationCode: 'B11',
+    name: 'Leg Extension',
+    brand: 'Cybex',
+    equipmentType: 'machine',
+    photoUrl: null,
+    instructions: 'Line knees with the machine pivot and control the pad back down.',
+    isAvailable: true,
+    catalogStatus: 'placeholder',
+  },
+  {
+    id: 'eq-leg-curl',
+    gymId: 'ratner',
+    stationCode: 'B12',
+    name: 'Seated Leg Curl',
+    brand: 'Cybex',
+    equipmentType: 'machine',
+    photoUrl: null,
+    instructions: 'Set the pad behind the ankles and curl without lifting the hips.',
+    isAvailable: true,
+    catalogStatus: 'placeholder',
+  },
+  {
+    id: 'eq-assisted-pullup',
+    gymId: 'ratner',
+    stationCode: 'A23',
+    name: 'Assisted Pull-up',
+    brand: 'Life Fitness',
+    equipmentType: 'machine',
+    photoUrl: null,
+    instructions: 'Choose assistance that lets you control the full range of motion.',
+    isAvailable: true,
+    catalogStatus: 'placeholder',
+  },
+  {
     id: 'eq-dumbbells',
     gymId: 'ratner',
-    machineNumber: null,
+    stationCode: 'C01',
     name: 'Dumbbell Rack',
     brand: null,
     equipmentType: 'dumbbell',
@@ -125,7 +180,35 @@ export const equipment: Equipment[] = [
     instructions: 'Choose a pair you can control for the full rep range.',
     isAvailable: true,
   },
+  {
+    id: 'eq-flat-benches',
+    gymId: 'ratner',
+    stationCode: 'C02',
+    name: 'Flat Bench Bay',
+    brand: null,
+    equipmentType: 'bench',
+    photoUrl: null,
+    instructions: 'Use an open flat bench for pressing, rows, and supported dumbbell work.',
+    isAvailable: true,
+  },
+  {
+    id: 'eq-squat-rack',
+    gymId: 'ratner',
+    stationCode: 'C03',
+    name: 'Half Rack',
+    brand: 'Hammer Strength',
+    equipmentType: 'rack',
+    photoUrl: null,
+    instructions: 'Set J-hooks and safeties at the correct height before loading the bar.',
+    isAvailable: true,
+    catalogStatus: 'placeholder',
+  },
 ];
+
+export const equipment: Equipment[] = mockEquipmentStations.map(({ stationCode, ...station }) => ({
+  ...station,
+  machineNumber: stationCode,
+}));
 
 export const exercises: Exercise[] = [
   {
@@ -209,6 +292,56 @@ export const exercises: Exercise[] = [
     videoUrl: null,
     thumbnailUrl: null,
   },
+  {
+    id: 'ex-shoulder-press',
+    name: 'Machine Shoulder Press',
+    instructions: 'Press handles overhead while keeping ribs stacked and shoulders down.',
+    difficulty: 'beginner',
+    movementPattern: 'push',
+    videoUrl: null,
+    thumbnailUrl: null,
+    catalogStatus: 'placeholder',
+  },
+  {
+    id: 'ex-leg-extension',
+    name: 'Leg Extension',
+    instructions: 'Extend knees smoothly, squeeze the quads, then lower with control.',
+    difficulty: 'beginner',
+    movementPattern: 'isolation',
+    videoUrl: null,
+    thumbnailUrl: null,
+    catalogStatus: 'placeholder',
+  },
+  {
+    id: 'ex-leg-curl',
+    name: 'Seated Leg Curl',
+    instructions: 'Curl the pad toward you without bouncing. Control the return.',
+    difficulty: 'beginner',
+    movementPattern: 'isolation',
+    videoUrl: null,
+    thumbnailUrl: null,
+    catalogStatus: 'placeholder',
+  },
+  {
+    id: 'ex-assisted-pullup',
+    name: 'Assisted Pull-up',
+    instructions: 'Start from straight arms, pull chest toward handles, and lower slowly.',
+    difficulty: 'beginner',
+    movementPattern: 'pull',
+    videoUrl: null,
+    thumbnailUrl: null,
+    catalogStatus: 'placeholder',
+  },
+  {
+    id: 'ex-triceps-pushdown',
+    name: 'Cable Triceps Pushdown',
+    instructions: 'Keep elbows pinned by your sides and press the handle down under control.',
+    difficulty: 'beginner',
+    movementPattern: 'isolation',
+    videoUrl: null,
+    thumbnailUrl: null,
+    catalogStatus: 'placeholder',
+  },
 ];
 
 export const exerciseMuscles: ExerciseMuscle[] = [
@@ -228,6 +361,13 @@ export const exerciseMuscles: ExerciseMuscle[] = [
   { exerciseId: 'ex-goblet-squat', muscleGroupId: 'quads', role: 'primary' },
   { exerciseId: 'ex-goblet-squat', muscleGroupId: 'glutes', role: 'secondary' },
   { exerciseId: 'ex-plank', muscleGroupId: 'core', role: 'primary' },
+  { exerciseId: 'ex-shoulder-press', muscleGroupId: 'shoulders', role: 'primary' },
+  { exerciseId: 'ex-shoulder-press', muscleGroupId: 'triceps', role: 'secondary' },
+  { exerciseId: 'ex-leg-extension', muscleGroupId: 'quads', role: 'primary' },
+  { exerciseId: 'ex-leg-curl', muscleGroupId: 'hamstrings', role: 'primary' },
+  { exerciseId: 'ex-assisted-pullup', muscleGroupId: 'lats', role: 'primary' },
+  { exerciseId: 'ex-assisted-pullup', muscleGroupId: 'biceps', role: 'secondary' },
+  { exerciseId: 'ex-triceps-pushdown', muscleGroupId: 'triceps', role: 'primary' },
 ];
 
 export const equipmentExercises: EquipmentExercise[] = [
@@ -240,6 +380,11 @@ export const equipmentExercises: EquipmentExercise[] = [
   { equipmentId: 'eq-leg-press', exerciseId: 'ex-leg-press', setupNotes: 'Start with sled only if new.', isPreferred: true },
   { equipmentId: 'eq-dumbbells', exerciseId: 'ex-goblet-squat', setupNotes: 'Hold one dumbbell vertically.', isPreferred: true },
   { equipmentId: 'eq-dumbbells', exerciseId: 'ex-plank', setupNotes: 'Use open floor space near mats.', isPreferred: false },
+  { equipmentId: 'eq-shoulder-press', exerciseId: 'ex-shoulder-press', setupNotes: 'Seat so handles start at shoulder height.', isPreferred: true },
+  { equipmentId: 'eq-leg-extension', exerciseId: 'ex-leg-extension', setupNotes: 'Pad should sit above the ankles.', isPreferred: true },
+  { equipmentId: 'eq-leg-curl', exerciseId: 'ex-leg-curl', setupNotes: 'Keep thighs pinned under the pad.', isPreferred: true },
+  { equipmentId: 'eq-assisted-pullup', exerciseId: 'ex-assisted-pullup', setupNotes: 'More assistance makes the movement easier.', isPreferred: true },
+  { equipmentId: 'eq-cable-tower', exerciseId: 'ex-triceps-pushdown', setupNotes: 'Set pulley high and attach a straight bar or rope.', isPreferred: true },
 ];
 
 export const exerciseSubstitutions: ExerciseSubstitution[] = [

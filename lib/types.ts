@@ -3,6 +3,9 @@ export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 export type Goal = 'strength' | 'muscle' | 'general_health';
 export type EquipmentPreference = 'machines' | 'dumbbells' | 'barbells' | 'mixed';
 export type EquipmentType = 'machine' | 'cable' | 'dumbbell' | 'barbell' | 'bench' | 'rack';
+export type CatalogStatus = 'verified' | 'placeholder' | 'needs_verification';
+export type ComfortLevel = 'new_to_gym' | 'some_experience' | 'confident';
+export type RoutineGenerationSource = 'ai' | 'fallback' | 'coach_template' | 'manual';
 export type MuscleRole = 'primary' | 'secondary';
 export type MovementPattern =
   | 'push'
@@ -28,6 +31,9 @@ export type UserPreferences = {
   goal: Goal;
   experienceLevel: ExperienceLevel;
   preferredEquipment: EquipmentPreference;
+  daysPerWeek: number;
+  sessionLengthMinutes: number;
+  comfortLevel: ComfortLevel;
   onboardingCompleted: boolean;
 };
 
@@ -47,6 +53,7 @@ export type Equipment = {
   photoUrl: string | null;
   instructions: string;
   isAvailable: boolean;
+  catalogStatus?: CatalogStatus;
 };
 
 export type MuscleGroup = {
@@ -62,6 +69,7 @@ export type Exercise = {
   movementPattern: MovementPattern;
   videoUrl?: string | null;
   thumbnailUrl?: string | null;
+  catalogStatus?: CatalogStatus;
 };
 
 export type ExerciseMuscle = {
@@ -117,6 +125,9 @@ export type UserRoutine = {
   title: string;
   status: WorkoutStatus;
   days: RoutineDay[];
+  generationSource?: RoutineGenerationSource;
+  generatedAt?: string;
+  promptVersion?: string;
 };
 
 export type UserWorkout = UserRoutine;

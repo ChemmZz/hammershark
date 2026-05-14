@@ -24,6 +24,7 @@ import {
   getPrimaryMuscleNames,
   getSwapRecommendations,
 } from '@/lib/recommendations';
+import { openExerciseVideo } from '@/lib/video';
 import { useWorkoutStore } from '@/lib/workout-store';
 import { RoutineDay, SwapRecommendation, UserRoutine, WorkoutExercise } from '@/lib/types';
 
@@ -186,9 +187,15 @@ function ExercisePlayerCard({
             <View style={styles.placeholderBar} />
           </View>
         )}
-        <View style={styles.playButton}>
+        <Pressable
+          accessibilityLabel={`Play demo video for ${exercise.name}`}
+          accessibilityRole="button"
+          onPress={() => {
+            void openExerciseVideo(exercise);
+          }}
+          style={styles.playButton}>
           <FontAwesome color={playerColors.ink} name="play" size={30} style={styles.playIcon} />
-        </View>
+        </Pressable>
         <Pressable accessibilityRole="checkbox" onPress={onComplete} style={styles.doneButton}>
           <View style={[styles.doneBox, completed && styles.doneBoxChecked]}>
             {completed ? <FontAwesome color={playerColors.white} name="check" size={17} /> : null}
@@ -204,7 +211,7 @@ function ExercisePlayerCard({
               {exercise.name}
             </AppText>
             <AppText numberOfLines={1} style={styles.machineText}>
-              {machine.machineNumber ? `Machine ${machine.machineNumber}` : 'Shared station'} ·{' '}
+              {machine.machineNumber ? `Station ${machine.machineNumber}` : 'Shared station'} ·{' '}
               {machine.name}
             </AppText>
           </View>
@@ -329,7 +336,7 @@ function SwapSheet({
                       <AppText style={styles.swapOptionTitle}>{recommendation.exercise.name}</AppText>
                       <AppText style={styles.swapOptionMeta}>
                         {recommendation.equipment.machineNumber
-                          ? `Machine ${recommendation.equipment.machineNumber}`
+                          ? `Station ${recommendation.equipment.machineNumber}`
                           : 'Open floor'}{' '}
                         · {recommendation.equipment.name}
                       </AppText>

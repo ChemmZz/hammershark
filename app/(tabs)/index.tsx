@@ -31,12 +31,16 @@ import {
 } from '@/lib/recommendations';
 import { getTemplateExerciseCount, useWorkoutStore } from '@/lib/workout-store';
 import {
+  ComfortLevel,
+  EquipmentPreference,
   ExperienceLevel,
   Goal,
   RoutineDay,
   SwapRecommendation,
+  UserPreferences,
   UserRoutine,
   WorkoutExercise,
+  WorkoutSetLog,
 } from '@/lib/types';
 
 const goalOptions: { label: string; value: Goal }[] = [
@@ -51,6 +55,22 @@ const experienceOptions: { label: string; value: ExperienceLevel }[] = [
   { label: 'Advanced', value: 'advanced' },
 ];
 
+const equipmentPreferenceOptions: { label: string; value: EquipmentPreference }[] = [
+  { label: 'Mixed', value: 'mixed' },
+  { label: 'Machines', value: 'machines' },
+  { label: 'Dumbbells', value: 'dumbbells' },
+  { label: 'Barbells', value: 'barbells' },
+];
+
+const comfortOptions: { label: string; value: ComfortLevel }[] = [
+  { label: 'New', value: 'new_to_gym' },
+  { label: 'Some reps', value: 'some_experience' },
+  { label: 'Confident', value: 'confident' },
+];
+
+const dayOptions = [2, 3, 4];
+const sessionLengthOptions = [30, 45, 60];
+
 export default function TodayScreen() {
   const { authMode, profile, signOut } = useHammersharkAuth();
   const {
@@ -60,11 +80,19 @@ export default function TodayScreen() {
     assignTemplate,
     coachRequests,
     completedExerciseIds,
-    createRecommendedRoutine,
+    completedRoutineDayIds,
+    finishRoutineDay,
+    generateRoutine,
+    generationState,
+    getLastSetLog,
+    logSet,
+    persistenceMode,
     requestCoachSession,
+    savePreferences,
     setActiveRoutineDayId,
     templates,
     toggleExerciseComplete,
+    userPreferences,
     userRoutines,
   } = useWorkoutStore();
   const firstName = profile?.displayName?.split(' ')[0] ?? 'Student';
@@ -96,8 +124,8 @@ export default function TodayScreen() {
               </View>
               <View style={styles.statusDivider} />
               <View style={styles.statusCell}>
-                <AppText style={styles.statusValue}>{authMode === 'demo' ? 'Demo' : 'Live'}</AppText>
-                <AppText style={styles.statusLabel}>{firstName}</AppText>
+                <AppText style={styles.statusValue}>{persistenceMode === 'local' ? 'Local' : 'Sync'}</AppText>
+                <AppText style={styles.statusLabel}>{authMode === 'demo' ? firstName : 'saved'}</AppText>
               </View>
             </View>
 
@@ -119,8 +147,12 @@ export default function TodayScreen() {
 
             <RoutineDayPlayer
               completedExerciseIds={completedExerciseIds}
+              completedRoutineDayIds={completedRoutineDayIds}
               day={activeRoutineDay}
               dayIndex={activeRoutineDayIndex}
+              finishRoutineDay={finishRoutineDay}
+              getLastSetLog={getLastSetLog}
+              logSet={logSet}
               onToggleComplete={toggleExerciseComplete}
               routine={activeRoutine}
             />
@@ -151,10 +183,13 @@ export default function TodayScreen() {
         ) : (
           <NoRoutineStart
             coachRequestCount={coachRequests.length}
-            createRecommendedRoutine={createRecommendedRoutine}
+            generateRoutine={generateRoutine}
+            generationState={generationState}
             onAssignTemplate={assignTemplate}
             requestCoachSession={requestCoachSession}
+            savePreferences={savePreferences}
             templates={templates}
+            userPreferences={userPreferences}
             userRoutineCount={userRoutines.length}
           />
         )}
@@ -198,14 +233,30 @@ function DaySelector({
 
 function RoutineDayPlayer({
   completedExerciseIds,
+  completedRoutineDayIds,
   day,
   dayIndex,
+  finishRoutineDay,
+  getLastSetLog,
+  logSet,
   onToggleComplete,
   routine,
 }: {
   completedExerciseIds: string[];
+  completedRoutineDayIds: string[];
   day: RoutineDay;
   dayIndex: number;
+  finishRoutineDay: (routineDayId: string) => void;
+  getLastSetLog: (workoutExerciseId: string, setNumber?: number) => WorkoutSetLog | null;
+  logSet: (
+    workoutExerciseId: string,
+    exerciseId: string,
+    equipmentId: string,
+    setNumber: number,
+    targetReps: number,
+    actualReps: number,
+    weight: number,
+  ) => void;
   onToggleComplete: (workoutExerciseId: string) => void;
   routine: UserRoutine;
 }) {
@@ -216,6 +267,7 @@ function RoutineDayPlayer({
   const completedCount = day.exercises.filter((exercise) =>
     completedExerciseIds.includes(exercise.id),
   ).length;
+  const dayFinished = completedRoutineDayIds.includes(day.id);
 
   const chooseSwap = (recommendation: SwapRecommendation) => {
     if (!swapTarget) {
@@ -235,7 +287,7 @@ function RoutineDayPlayer({
             Day {dayIndex + 1}: {day.title}
           </AppText>
           <AppText style={styles.muted}>
-            {completedCount} of {day.exercises.length} completed
+            {dayFinished ? 'Finished' : `${completedCount} of ${day.exercises.length} completed`}
           </AppText>
         </View>
         <Pressable
@@ -253,6 +305,18 @@ function RoutineDayPlayer({
         renderItem={({ item }) => (
           <ExerciseCard
             completed={completedExerciseIds.includes(item.id)}
+            lastSetLog={getLastSetLog(item.id)}
+            onLogSet={(weight) =>
+              logSet(
+                item.id,
+                item.exerciseId,
+                item.equipmentId,
+                1,
+                item.repsMax,
+                item.repsMax,
+                weight,
+              )
+            }
             onComplete={() => onToggleComplete(item.id)}
             onSwap={() => setSwapTarget(item)}
             width={cardWidth}
@@ -271,19 +335,32 @@ function RoutineDayPlayer({
         targetExercise={swapTarget}
         visible={Boolean(swapTarget)}
       />
+
+      <View style={styles.finishRow}>
+        <PrimaryButton
+          icon="check"
+          onPress={() => finishRoutineDay(day.id)}
+          variant={dayFinished ? 'secondary' : 'primary'}>
+          {dayFinished ? 'Day finished' : 'Finish day'}
+        </PrimaryButton>
+      </View>
     </Card>
   );
 }
 
 function ExerciseCard({
   completed,
+  lastSetLog,
   onComplete,
+  onLogSet,
   onSwap,
   width,
   workoutExercise,
 }: {
   completed: boolean;
+  lastSetLog: WorkoutSetLog | null;
   onComplete: () => void;
+  onLogSet: (weight: number) => void;
   onSwap: () => void;
   width: number;
   workoutExercise: WorkoutExercise;
@@ -291,7 +368,8 @@ function ExerciseCard({
   const exercise = getExercise(workoutExercise.exerciseId);
   const machine = getEquipment(workoutExercise.equipmentId);
   const muscles = getPrimaryMuscleNames(workoutExercise.exerciseId);
-  const [weight, setWeight] = useState('20.0');
+  const [weight, setWeight] = useState(lastSetLog ? String(lastSetLog.weight) : '20.0');
+  const parsedWeight = Number.parseFloat(weight);
 
   return (
     <View style={[styles.exerciseCard, { width }, completed && styles.exerciseCardDone]}>
@@ -311,7 +389,7 @@ function ExerciseCard({
           <View style={styles.flex}>
             <AppText style={styles.exerciseTitle}>{exercise.name}</AppText>
             <AppText style={styles.muted}>
-              {machine.machineNumber ? `Machine ${machine.machineNumber}` : 'Open floor'} · {machine.name}
+              {machine.machineNumber ? `Station ${machine.machineNumber}` : 'Open floor'} · {machine.name}
             </AppText>
           </View>
           <Pressable accessibilityRole="button" onPress={onSwap} style={styles.swapButton}>
@@ -340,12 +418,26 @@ function ExerciseCard({
               />
               <AppText style={styles.weightUnit}>kg</AppText>
             </View>
+            {lastSetLog ? (
+              <AppText style={styles.previousText}>
+                Last: {lastSetLog.actualReps} reps · {lastSetLog.weight}kg
+              </AppText>
+            ) : null}
           </View>
           <View style={styles.restBox}>
             <AppText style={styles.controlLabel}>Rest</AppText>
             <AppText style={styles.restValue}>{formatSeconds(workoutExercise.restSeconds)}</AppText>
           </View>
         </View>
+        <PrimaryButton
+          icon="save"
+          onPress={() => {
+            onLogSet(Number.isFinite(parsedWeight) ? parsedWeight : 0);
+            onComplete();
+          }}
+          variant="secondary">
+          Log set 1
+        </PrimaryButton>
       </View>
     </View>
   );
@@ -397,7 +489,7 @@ function SwapSheet({
                       <AppText style={styles.cardTitle}>{recommendation.exercise.name}</AppText>
                       <AppText style={styles.muted}>
                         {recommendation.equipment.machineNumber
-                          ? `Machine ${recommendation.equipment.machineNumber}`
+                          ? `Station ${recommendation.equipment.machineNumber}`
                           : 'Open floor'}{' '}
                         · {recommendation.equipment.name}
                       </AppText>
@@ -421,29 +513,62 @@ function SwapSheet({
 
 function NoRoutineStart({
   coachRequestCount,
-  createRecommendedRoutine,
+  generateRoutine,
+  generationState,
   onAssignTemplate,
   requestCoachSession,
+  savePreferences,
   templates,
+  userPreferences,
 }: {
   coachRequestCount: number;
-  createRecommendedRoutine: (goal: Goal, experienceLevel: ExperienceLevel) => void;
+  generateRoutine: (preferences: Partial<UserPreferences>) => void;
+  generationState: ReturnType<typeof useWorkoutStore>['generationState'];
   onAssignTemplate: (templateId: string) => void;
   requestCoachSession: (goal: Goal, experienceLevel: ExperienceLevel) => void;
+  savePreferences: (preferences: Partial<UserPreferences>) => void;
   templates: ReturnType<typeof useWorkoutStore>['templates'];
+  userPreferences: ReturnType<typeof useWorkoutStore>['userPreferences'];
   userRoutineCount: number;
 }) {
-  const [goal, setGoal] = useState<Goal>('strength');
-  const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel>('beginner');
+  const [goal, setGoal] = useState<Goal>(userPreferences.goal);
+  const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel>(
+    userPreferences.experienceLevel,
+  );
+  const [preferredEquipment, setPreferredEquipment] = useState<EquipmentPreference>(
+    userPreferences.preferredEquipment,
+  );
+  const [comfortLevel, setComfortLevel] = useState<ComfortLevel>(userPreferences.comfortLevel);
+  const [daysPerWeek, setDaysPerWeek] = useState(userPreferences.daysPerWeek);
+  const [sessionLengthMinutes, setSessionLengthMinutes] = useState(
+    userPreferences.sessionLengthMinutes,
+  );
+
+  const preferences = {
+    goal,
+    experienceLevel,
+    preferredEquipment,
+    comfortLevel,
+    daysPerWeek,
+    sessionLengthMinutes,
+  };
 
   return (
     <>
       <Card style={styles.emptyHero}>
         <Eyebrow>No routine saved</Eyebrow>
-        <AppText style={styles.heroTitle}>Set up your first routine.</AppText>
+        <AppText style={styles.heroTitle}>Generate your first routine.</AppText>
         <AppText style={styles.muted}>
-          Pick a coach plan, request help, or let the app suggest a starting point.
+          V2 uses your goal, schedule, and comfort level to build a Ratner-aware routine.
         </AppText>
+        {generationState.message ? (
+          <View style={styles.generationNotice}>
+            <Pill tone={generationState.source === 'fallback' ? 'gold' : 'accent'}>
+              {generationState.source ?? generationState.status}
+            </Pill>
+            <AppText style={styles.muted}>{generationState.message}</AppText>
+          </View>
+        ) : null}
       </Card>
 
       <View style={styles.optionGrid}>
@@ -465,13 +590,78 @@ function NoRoutineStart({
         </Card>
 
         <Card style={styles.planCard}>
-          <Eyebrow>Goal and level</Eyebrow>
+          <Eyebrow>1. Goal and level</Eyebrow>
           <OptionChips options={goalOptions} selected={goal} onSelect={setGoal} />
           <OptionChips
             options={experienceOptions}
             selected={experienceLevel}
             onSelect={setExperienceLevel}
           />
+          <Eyebrow>2. Schedule</Eyebrow>
+          <View style={styles.metricChooser}>
+            {dayOptions.map((days) => (
+              <Pressable
+                accessibilityRole="button"
+                key={days}
+                onPress={() => setDaysPerWeek(days)}
+                style={[styles.metricButton, days === daysPerWeek && styles.metricButtonActive]}>
+                <AppText
+                  style={[
+                    styles.metricValue,
+                    days === daysPerWeek && styles.metricValueActive,
+                  ]}>
+                  {days}
+                </AppText>
+                <AppText style={styles.metricLabel}>days/wk</AppText>
+              </Pressable>
+            ))}
+          </View>
+          <View style={styles.metricChooser}>
+            {sessionLengthOptions.map((minutes) => (
+              <Pressable
+                accessibilityRole="button"
+                key={minutes}
+                onPress={() => setSessionLengthMinutes(minutes)}
+                style={[
+                  styles.metricButton,
+                  minutes === sessionLengthMinutes && styles.metricButtonActive,
+                ]}>
+                <AppText
+                  style={[
+                    styles.metricValue,
+                    minutes === sessionLengthMinutes && styles.metricValueActive,
+                  ]}>
+                  {minutes}
+                </AppText>
+                <AppText style={styles.metricLabel}>min</AppText>
+              </Pressable>
+            ))}
+          </View>
+          <Eyebrow>3. Equipment and comfort</Eyebrow>
+          <OptionChips
+            options={equipmentPreferenceOptions}
+            selected={preferredEquipment}
+            onSelect={setPreferredEquipment}
+          />
+          <OptionChips options={comfortOptions} selected={comfortLevel} onSelect={setComfortLevel} />
+        </Card>
+
+        <Card style={styles.planCard}>
+          <AppText style={styles.cardTitle}>AI routine recommendation</AppText>
+          <AppText style={styles.muted}>
+            Uses constrained catalog IDs. If AI is unavailable, a deterministic fallback still creates a valid routine.
+          </AppText>
+          <PrimaryButton
+            icon="magic"
+            onPress={() => generateRoutine(preferences)}>
+            Generate routine
+          </PrimaryButton>
+          <PrimaryButton
+            icon="save"
+            onPress={() => savePreferences({ ...preferences, onboardingCompleted: true })}
+            variant="ghost">
+            Save preferences
+          </PrimaryButton>
         </Card>
 
         <Card style={styles.planCard}>
@@ -479,30 +669,21 @@ function NoRoutineStart({
             <View style={styles.flex}>
               <AppText style={styles.cardTitle}>Schedule with a coach</AppText>
               <AppText style={styles.muted}>
-                {coachRequestCount ? 'Request saved locally.' : 'Ask a trainer to help build the routine.'}
+                {coachRequestCount ? 'Request saved locally.' : 'Ask a trainer to review your setup.'}
               </AppText>
             </View>
             <Pill tone={coachRequestCount ? 'accent' : 'neutral'}>
-              {coachRequestCount ? 'sent' : 'v1'}
+              {coachRequestCount ? 'sent' : 'v2'}
             </Pill>
           </View>
           <PrimaryButton
             icon="calendar"
-            onPress={() => requestCoachSession(goal, experienceLevel)}
+            onPress={() => {
+              savePreferences({ ...preferences, onboardingCompleted: true });
+              requestCoachSession(goal, experienceLevel);
+            }}
             variant="secondary">
             Request coach
-          </PrimaryButton>
-        </Card>
-
-        <Card style={styles.planCard}>
-          <AppText style={styles.cardTitle}>Algorithm recommendation</AppText>
-          <AppText style={styles.muted}>
-            Uses your selected goal and experience to choose a starter routine.
-          </AppText>
-          <PrimaryButton
-            icon="magic"
-            onPress={() => createRecommendedRoutine(goal, experienceLevel)}>
-            Recommend routine
           </PrimaryButton>
         </Card>
       </View>
@@ -723,6 +904,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
+  finishRow: {
+    paddingHorizontal: 14,
+  },
   weightBox: {
     backgroundColor: colors.surfaceMuted,
     borderRadius: 8,
@@ -756,6 +940,12 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 14,
     fontWeight: '800',
+  },
+  previousText: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
   },
   restValue: {
     color: colors.ink,
@@ -801,6 +991,12 @@ const styles = StyleSheet.create({
   emptyHero: {
     gap: 8,
   },
+  generationNotice: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 8,
+    gap: 8,
+    padding: 10,
+  },
   heroTitle: {
     fontSize: 22,
     fontWeight: '900',
@@ -824,6 +1020,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  metricChooser: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  metricButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    minHeight: 62,
+    justifyContent: 'center',
+  },
+  metricButtonActive: {
+    backgroundColor: '#e7f3ed',
+    borderColor: colors.accent,
+  },
+  metricValue: {
+    color: colors.muted,
+    fontSize: 19,
+    fontWeight: '900',
+    lineHeight: 23,
+  },
+  metricValueActive: {
+    color: colors.accentDark,
+  },
+  metricLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '800',
   },
   optionChip: {
     backgroundColor: colors.surfaceMuted,

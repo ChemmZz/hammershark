@@ -1,20 +1,29 @@
 import React, { createContext, PropsWithChildren, useContext, useMemo, useState } from 'react';
 
 import {
+  demoPreferences,
   equipment,
   equipmentExercises,
   exercises,
-  initialUserRoutines,
   workoutTemplates,
 } from '@/data/demoData';
+import { useHammersharkAuth } from '@/lib/auth';
+import {
+  savePreferences as persistPreferences,
+  saveRoutine as persistRoutine,
+  saveSetLog as persistSetLog,
+} from '@/lib/routine-persistence';
 import { getPreferredEquipmentForExercise } from '@/lib/recommendations';
+import { generateRoutineFromPreferences } from '@/lib/routine-generation';
 import {
   Equipment,
   Exercise,
   ExperienceLevel,
   Goal,
   RoutineDay,
+  RoutineGenerationSource,
   SwapRecommendation,
+  UserPreferences,
   UserRoutine,
   WorkoutExercise,
   WorkoutSetLog,
@@ -25,7 +34,15 @@ type CoachRequest = {
   id: string;
   goal: Goal;
   experienceLevel: ExperienceLevel;
+  daysPerWeek: number;
+  sessionLengthMinutes: number;
   createdAt: string;
+};
+
+type RoutineGenerationState = {
+  status: 'idle' | 'generating' | 'ready' | 'error';
+  source?: RoutineGenerationSource;
+  message?: string;
 };
 
 type WorkoutStoreValue = {
@@ -36,13 +53,19 @@ type WorkoutStoreValue = {
   activeRoutineDay: RoutineDay | null;
   activeRoutineDayIndex: number;
   activeWorkout: UserRoutine | null;
+  userPreferences: UserPreferences;
   completedExerciseIds: string[];
+  completedRoutineDayIds: string[];
   coachRequests: CoachRequest[];
+  generationState: RoutineGenerationState;
+  persistenceMode: 'local' | 'supabase';
+  savePreferences: (preferences: Partial<UserPreferences>) => void;
   setActiveRoutineId: (routineId: string) => void;
   setActiveRoutineDayId: (dayId: string) => void;
   setActiveWorkoutId: (routineId: string) => void;
   setLogs: WorkoutSetLog[];
   assignTemplate: (templateId: string) => void;
+  generateRoutine: (preferences: Partial<UserPreferences>) => void;
   createRecommendedRoutine: (goal: Goal, experienceLevel: ExperienceLevel) => void;
   createManualRoutine: (exerciseId: string) => void;
   createManualWorkout: (exerciseId: string) => void;
@@ -50,6 +73,8 @@ type WorkoutStoreValue = {
   addExerciseToManualWorkout: (exerciseId: string) => void;
   requestCoachSession: (goal: Goal, experienceLevel: ExperienceLevel) => void;
   toggleExerciseComplete: (workoutExerciseId: string) => void;
+  finishRoutineDay: (routineDayId: string) => void;
+  getLastSetLog: (workoutExerciseId: string, setNumber?: number) => WorkoutSetLog | null;
   swapExercise: (
     userRoutineId: string,
     routineDayId: string,
@@ -103,14 +128,19 @@ function updateRoutineDay(
 }
 
 export function HammersharkProvider({ children }: PropsWithChildren) {
+  const { getSupabaseAccessToken } = useHammersharkAuth();
   const [templates, setTemplates] = useState<WorkoutTemplate[]>(workoutTemplates);
-  const [userRoutines, setUserRoutines] = useState<UserRoutine[]>(initialUserRoutines);
-  const [activeRoutineId, setActiveRoutineIdState] = useState(initialUserRoutines[0]?.id ?? '');
-  const [activeRoutineDayId, setActiveRoutineDayIdState] = useState(
-    initialUserRoutines[0]?.days[0]?.id ?? '',
-  );
+  const [userRoutines, setUserRoutines] = useState<UserRoutine[]>([]);
+  const [userPreferences, setUserPreferences] = useState<UserPreferences>(demoPreferences);
+  const [activeRoutineId, setActiveRoutineIdState] = useState('');
+  const [activeRoutineDayId, setActiveRoutineDayIdState] = useState('');
   const [completedExerciseIds, setCompletedExerciseIds] = useState<string[]>([]);
+  const [completedRoutineDayIds, setCompletedRoutineDayIds] = useState<string[]>([]);
   const [coachRequests, setCoachRequests] = useState<CoachRequest[]>([]);
+  const [generationState, setGenerationState] = useState<RoutineGenerationState>({
+    status: 'idle',
+  });
+  const [persistenceMode, setPersistenceMode] = useState<'local' | 'supabase'>('local');
   const [setLogs, setSetLogs] = useState<WorkoutSetLog[]>([]);
 
   const activeRoutine =
@@ -138,6 +168,28 @@ export function HammersharkProvider({ children }: PropsWithChildren) {
     setActiveRoutineDayIdState(dayId);
   };
 
+  const savePreferences = (preferences: Partial<UserPreferences>) => {
+    const nextPreferences = {
+      ...userPreferences,
+      ...preferences,
+      onboardingCompleted: preferences.onboardingCompleted ?? true,
+    };
+
+    setUserPreferences(nextPreferences);
+    void persistPreferences(nextPreferences, getSupabaseAccessToken).then((result) => {
+      setPersistenceMode(result.mode);
+    });
+  };
+
+  const activateRoutine = (routine: UserRoutine) => {
+    setUserRoutines((current) => [routine, ...current]);
+    setActiveRoutineIdState(routine.id);
+    setActiveRoutineDayIdState(routine.days[0]?.id ?? '');
+    void persistRoutine(routine, getSupabaseAccessToken).then((result) => {
+      setPersistenceMode(result.mode);
+    });
+  };
+
   const assignTemplate = (templateId: string) => {
     const template = templates.find((item) => item.id === templateId);
 
@@ -154,37 +206,50 @@ export function HammersharkProvider({ children }: PropsWithChildren) {
       title: template.title,
       status: 'active',
       days: copyTemplateDays(template, 'routine'),
+      generationSource: 'coach_template',
+      generatedAt: new Date().toISOString(),
     };
 
-    setUserRoutines((current) => [copiedRoutine, ...current]);
-    setActiveRoutineIdState(routineId);
-    setActiveRoutineDayIdState(copiedRoutine.days[0]?.id ?? '');
+    activateRoutine(copiedRoutine);
+  };
+
+  const generateRoutine = (preferences: Partial<UserPreferences>) => {
+    const nextPreferences: UserPreferences = {
+      ...userPreferences,
+      ...preferences,
+      onboardingCompleted: true,
+    };
+
+    setUserPreferences(nextPreferences);
+    void persistPreferences(nextPreferences, getSupabaseAccessToken).then((result) => {
+      setPersistenceMode(result.mode);
+    });
+    setGenerationState({ status: 'generating' });
+
+    try {
+      const result = generateRoutineFromPreferences({
+        makeId,
+        preferences: nextPreferences,
+        templates,
+        userId: nextPreferences.userId,
+      });
+
+      activateRoutine(result.routine);
+      setGenerationState({
+        status: 'ready',
+        source: result.source,
+        message: result.summary,
+      });
+    } catch (error) {
+      setGenerationState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Could not generate a routine.',
+      });
+    }
   };
 
   const createRecommendedRoutine = (goal: Goal, experienceLevel: ExperienceLevel) => {
-    const template =
-      templates.find((item) => item.goal === goal && item.experienceLevel === experienceLevel) ??
-      templates.find((item) => item.goal === goal) ??
-      templates[0];
-
-    if (!template) {
-      return;
-    }
-
-    const routineId = makeId('recommended-routine');
-    const routine: UserRoutine = {
-      id: routineId,
-      userId: 'profile-user-demo',
-      sourceTemplateId: template.id,
-      assignedBy: null,
-      title: `Recommended: ${template.title}`,
-      status: 'active',
-      days: copyTemplateDays(template, 'recommended'),
-    };
-
-    setUserRoutines((current) => [routine, ...current]);
-    setActiveRoutineIdState(routineId);
-    setActiveRoutineDayIdState(routine.days[0]?.id ?? '');
+    generateRoutine({ goal, experienceLevel });
   };
 
   const createManualRoutine = (exerciseId: string) => {
@@ -224,11 +289,11 @@ export function HammersharkProvider({ children }: PropsWithChildren) {
           ],
         },
       ],
+      generationSource: 'manual',
+      generatedAt: new Date().toISOString(),
     };
 
-    setUserRoutines((current) => [routine, ...current]);
-    setActiveRoutineIdState(routineId);
-    setActiveRoutineDayIdState(dayId);
+    activateRoutine(routine);
   };
 
   const addExerciseToActiveDay = (exerciseId: string) => {
@@ -276,10 +341,26 @@ export function HammersharkProvider({ children }: PropsWithChildren) {
         id: makeId('coach-request'),
         goal,
         experienceLevel,
+        daysPerWeek: userPreferences.daysPerWeek,
+        sessionLengthMinutes: userPreferences.sessionLengthMinutes,
         createdAt: new Date().toISOString(),
       },
       ...current,
     ]);
+  };
+
+  const finishRoutineDay = (routineDayId: string) => {
+    const day = activeRoutine?.days.find((candidate) => candidate.id === routineDayId);
+
+    if (day) {
+      setCompletedExerciseIds((current) =>
+        Array.from(new Set([...current, ...day.exercises.map((exercise) => exercise.id)])),
+      );
+    }
+
+    setCompletedRoutineDayIds((current) =>
+      current.includes(routineDayId) ? current : [...current, routineDayId],
+    );
   };
 
   const toggleExerciseComplete = (workoutExerciseId: string) => {
@@ -354,7 +435,17 @@ export function HammersharkProvider({ children }: PropsWithChildren) {
         (item) => !(item.workoutExerciseId === workoutExerciseId && item.setNumber === setNumber),
       ),
     ]);
+    void persistSetLog(log, getSupabaseAccessToken).then((result) => {
+      setPersistenceMode(result.mode);
+    });
   };
+
+  const getLastSetLog = (workoutExerciseId: string, setNumber?: number) =>
+    setLogs.find(
+      (log) =>
+        log.workoutExerciseId === workoutExerciseId &&
+        (setNumber === undefined || log.setNumber === setNumber),
+    ) ?? null;
 
   const createTrainerTemplate = (title: string, exerciseIds: string[]) => {
     const uniqueExerciseIds = Array.from(new Set(exerciseIds)).filter(Boolean);
@@ -408,13 +499,19 @@ export function HammersharkProvider({ children }: PropsWithChildren) {
       activeRoutineDay,
       activeRoutineDayIndex,
       activeWorkout: activeRoutine,
+      userPreferences,
       completedExerciseIds,
+      completedRoutineDayIds,
       coachRequests,
+      generationState,
+      persistenceMode,
+      savePreferences,
       setActiveRoutineId,
       setActiveRoutineDayId,
       setActiveWorkoutId: setActiveRoutineId,
       setLogs,
       assignTemplate,
+      generateRoutine,
       createRecommendedRoutine,
       createManualRoutine,
       createManualWorkout: createManualRoutine,
@@ -422,6 +519,8 @@ export function HammersharkProvider({ children }: PropsWithChildren) {
       addExerciseToManualWorkout: addExerciseToActiveDay,
       requestCoachSession,
       toggleExerciseComplete,
+      finishRoutineDay,
+      getLastSetLog,
       swapExercise,
       logSet,
       createTrainerTemplate,
@@ -434,8 +533,12 @@ export function HammersharkProvider({ children }: PropsWithChildren) {
       activeRoutineDayIndex,
       coachRequests,
       completedExerciseIds,
+      completedRoutineDayIds,
+      generationState,
+      persistenceMode,
       setLogs,
       templates,
+      userPreferences,
       userRoutines,
     ],
   );
