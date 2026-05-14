@@ -1,12 +1,13 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { createElement, useMemo, useState } from 'react';
 import {
   FlatList,
   Image,
   Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,6 +15,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/ui';
@@ -24,7 +26,7 @@ import {
   getPrimaryMuscleNames,
   getSwapRecommendations,
 } from '@/lib/recommendations';
-import { openExerciseVideo } from '@/lib/video';
+import { getExerciseEmbedUrl } from '@/lib/video';
 import { useWorkoutStore } from '@/lib/workout-store';
 import { RoutineDay, SwapRecommendation, UserRoutine, WorkoutExercise } from '@/lib/types';
 
@@ -53,6 +55,7 @@ export default function WorkoutPlayerScreen() {
     userRoutines,
   } = useWorkoutStore();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [activeVideoExerciseId, setActiveVideoExerciseId] = useState<string | null>(null);
   const [swapTarget, setSwapTarget] = useState<WorkoutExercise | null>(null);
   const { width } = useWindowDimensions();
 
@@ -93,6 +96,7 @@ export default function WorkoutPlayerScreen() {
   };
 
   const closePlayer = () => {
+    setActiveVideoExerciseId(null);
     setActiveRoutineId(routine.id);
     router.back();
   };
@@ -125,7 +129,9 @@ export default function WorkoutPlayerScreen() {
               cardWidth={cardWidth}
               completed={completedExerciseIds.includes(item.id)}
               onComplete={() => toggleExerciseComplete(item.id)}
+              onPlay={() => setActiveVideoExerciseId(item.id)}
               onSwap={() => setSwapTarget(item)}
+              playingVideo={activeVideoExerciseId === item.id}
               workoutExercise={item}
             />
           )}
@@ -162,24 +168,31 @@ function ExercisePlayerCard({
   cardWidth,
   completed,
   onComplete,
+  onPlay,
   onSwap,
+  playingVideo,
   workoutExercise,
 }: {
   cardWidth: number;
   completed: boolean;
   onComplete: () => void;
+  onPlay: () => void;
   onSwap: () => void;
+  playingVideo: boolean;
   workoutExercise: WorkoutExercise;
 }) {
   const exercise = getExercise(workoutExercise.exerciseId);
   const machine = getEquipment(workoutExercise.equipmentId);
   const primaryMuscles = getPrimaryMuscleNames(workoutExercise.exerciseId);
   const [weight, setWeight] = useState('20.0');
+  const embedUrl = getExerciseEmbedUrl(exercise);
 
   return (
     <View style={[styles.exerciseCard, { width: cardWidth }, completed && styles.exerciseCardDone]}>
       <View style={styles.media}>
-        {exercise.thumbnailUrl ? (
+        {playingVideo ? (
+          <EmbeddedExerciseVideo url={embedUrl} />
+        ) : exercise.thumbnailUrl ? (
           <Image source={{ uri: exercise.thumbnailUrl }} style={styles.mediaImage} />
         ) : (
           <View style={styles.mediaPlaceholder}>
@@ -187,15 +200,15 @@ function ExercisePlayerCard({
             <View style={styles.placeholderBar} />
           </View>
         )}
-        <Pressable
-          accessibilityLabel={`Play demo video for ${exercise.name}`}
-          accessibilityRole="button"
-          onPress={() => {
-            void openExerciseVideo(exercise);
-          }}
-          style={styles.playButton}>
-          <FontAwesome color={playerColors.ink} name="play" size={30} style={styles.playIcon} />
-        </Pressable>
+        {!playingVideo ? (
+          <Pressable
+            accessibilityLabel={`Play demo video for ${exercise.name}`}
+            accessibilityRole="button"
+            onPress={onPlay}
+            style={styles.playButton}>
+            <FontAwesome color={playerColors.ink} name="play" size={30} style={styles.playIcon} />
+          </Pressable>
+        ) : null}
         <Pressable accessibilityRole="checkbox" onPress={onComplete} style={styles.doneButton}>
           <View style={[styles.doneBox, completed && styles.doneBoxChecked]}>
             {completed ? <FontAwesome color={playerColors.white} name="check" size={17} /> : null}
@@ -275,6 +288,34 @@ function ExercisePlayerCard({
         </View>
       </View>
     </View>
+  );
+}
+
+function EmbeddedExerciseVideo({ url }: { url: string }) {
+  if (Platform.OS === 'web') {
+    return (
+      <View style={styles.mediaWebview}>
+        {createElement('iframe', {
+          allow:
+            'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share',
+          allowFullScreen: true,
+          referrerPolicy: 'strict-origin-when-cross-origin',
+          src: url,
+          style: styles.mediaIframe,
+          title: 'Exercise demo video',
+        })}
+      </View>
+    );
+  }
+
+  return (
+    <WebView
+      allowsFullscreenVideo
+      javaScriptEnabled
+      mediaPlaybackRequiresUserAction
+      source={{ uri: url }}
+      style={styles.mediaWebview}
+    />
   );
 }
 
@@ -446,6 +487,17 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   mediaImage: {
+    height: '100%',
+    width: '100%',
+  },
+  mediaWebview: {
+    backgroundColor: playerColors.bg,
+    height: '100%',
+    width: '100%',
+  },
+  mediaIframe: {
+    backgroundColor: playerColors.bg,
+    borderWidth: 0,
     height: '100%',
     width: '100%',
   },
